@@ -2,8 +2,7 @@
 # Para rodar este app:
 # 1. Salve este código como `app.py`.
 # 2. Instale as bibliotecas necessárias: pip install streamlit pandas
-# 3. Crie os arquivos .csv na mesma pasta: membros.csv, eventos.csv, tesouraria.csv, presenca.csv
-# 4. No terminal, execute: streamlit run app.py
+# 3. No terminal, execute: streamlit run app.py
 
 import streamlit as st
 import pandas as pd
@@ -16,63 +15,42 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Funções de Carregamento de Dados ---
-# Usamos o cache do Streamlit para não recarregar os dados a cada interação.
-@st.cache_data
-def load_data():
-    """Carrega todos os dados dos arquivos CSV."""
-    try:
-        membros_df = pd.read_csv("membros.csv")
-    except FileNotFoundError:
-        # Cria um DataFrame de exemplo se o arquivo não existir
-        membros_df = pd.DataFrame({
+# --- Inicialização dos Dados no Estado da Sessão ---
+def initialize_data():
+    """Inicializa os DataFrames no st.session_state se eles não existirem."""
+    if 'membros_df' not in st.session_state:
+        st.session_state.membros_df = pd.DataFrame({
             'id_membro': [1, 2, 3, 4],
             'nome': ['João da Silva', 'Carlos Pereira', 'Pedro Almeida', 'Lucas Souza'],
             'status': ['Ativo', 'Ativo', 'Sênior', 'Ativo'],
             'email': ['joao@email.com', 'carlos@email.com', 'pedro@email.com', 'lucas@email.com']
         })
-        membros_df.to_csv("membros.csv", index=False)
 
-    try:
-        eventos_df = pd.read_csv("eventos.csv")
-    except FileNotFoundError:
-        eventos_df = pd.DataFrame({
+    if 'eventos_df' not in st.session_state:
+        st.session_state.eventos_df = pd.DataFrame({
             'id_evento': [101, 102, 103],
-            'data': ['2025-08-02', '2025-08-09', '2025-08-16'],
+            'data': pd.to_datetime(['2025-08-02', '2025-08-09', '2025-08-16']),
             'evento': ['Reunião Ordinária', 'Filantropia - Asilo', 'Cerimônia Magna de Iniciação'],
             'descricao': ['Discussão de projetos e planejamento.', 'Visita e doação de alimentos.', 'Iniciação de novos membros.']
         })
-        eventos_df.to_csv("eventos.csv", index=False)
 
-    try:
-        tesouraria_df = pd.read_csv("tesouraria.csv")
-    except FileNotFoundError:
-        tesouraria_df = pd.DataFrame({
-            'data': ['2025-07-01', '2025-07-05', '2025-07-15'],
+    if 'tesouraria_df' not in st.session_state:
+        st.session_state.tesouraria_df = pd.DataFrame({
+            'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
             'descricao': ['Taxa mensal - João', 'Compra de materiais para reunião', 'Taxa mensal - Carlos'],
             'tipo': ['Entrada', 'Saída', 'Entrada'],
             'valor': [20.00, -15.50, 20.00]
         })
-        tesouraria_df.to_csv("tesouraria.csv", index=False)
 
-    try:
-        presenca_df = pd.read_csv("presenca.csv")
-    except FileNotFoundError:
-        presenca_df = pd.DataFrame({
+    if 'presenca_df' not in st.session_state:
+        st.session_state.presenca_df = pd.DataFrame({
             'id_evento': [101, 101, 101, 102, 102],
             'id_membro': [1, 2, 4, 1, 3],
             'presente': [True, True, False, True, True]
         })
-        presenca_df.to_csv("presenca.csv", index=False)
 
-    # Converte colunas de data para o tipo datetime
-    eventos_df['data'] = pd.to_datetime(eventos_df['data'])
-    tesouraria_df['data'] = pd.to_datetime(tesouraria_df['data'])
-    return membros_df, eventos_df, tesouraria_df, presenca_df
-
-# --- Carregando os dados ---
-membros_df, eventos_df, tesouraria_df, presenca_df = load_data()
-
+# Chamada da função de inicialização
+initialize_data()
 
 # --- Barra Lateral de Navegação ---
 st.sidebar.image("https://placehold.co/150x150/000000/FFFFFF?text=⚜️", width=100)
@@ -87,7 +65,6 @@ pagina_selecionada = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.info("Desenvolvido para facilitar a gestão do Capítulo.")
 
-
 # --- Lógica para Exibir a Página Selecionada ---
 
 if pagina_selecionada == "Página Inicial":
@@ -96,21 +73,18 @@ if pagina_selecionada == "Página Inicial":
 
     col1, col2, col3 = st.columns(3)
     
-    # Card: Total de Membros Ativos
-    membros_ativos = membros_df[membros_df['status'] == 'Ativo'].shape[0]
+    membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0]
     col1.metric("Membros Ativos", f"{membros_ativos}")
 
-    # Card: Próximo Evento
     hoje = datetime.now()
-    proximos_eventos = eventos_df[eventos_df['data'] >= hoje].sort_values('data')
+    proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data')
     if not proximos_eventos.empty:
         prox_evento = proximos_eventos.iloc[0]
         col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
     else:
         col2.metric("Próximo Evento", "Nenhum", "Cadastre novos eventos")
 
-    # Card: Saldo da Tesouraria
-    saldo_atual = tesouraria_df['valor'].sum()
+    saldo_atual = st.session_state.tesouraria_df['valor'].sum()
     col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
 
     st.markdown("---")
@@ -120,107 +94,141 @@ if pagina_selecionada == "Página Inicial":
     else:
         st.info("Não há eventos futuros cadastrados.")
 
-
 elif pagina_selecionada == "Membros":
-    st.header("Consulta de Membros")
-    
-    status_filtro = st.multiselect(
-        "Filtrar por Status:",
-        options=membros_df['status'].unique(),
-        default=membros_df['status'].unique()
-    )
-    
-    membros_filtrados = membros_df[membros_df['status'].isin(status_filtro)]
-    
-    st.dataframe(membros_filtrados, use_container_width=True)
-    st.info(f"Total de membros exibidos: {len(membros_filtrados)}")
+    st.header("Gestão de Membros")
 
+    with st.expander("➕ Adicionar Novo Membro"):
+        with st.form("novo_membro_form", clear_on_submit=True):
+            novo_nome = st.text_input("Nome Completo")
+            novo_status = st.selectbox("Status", ["Ativo", "Sênior"])
+            novo_email = st.text_input("E-mail")
+            
+            submitted = st.form_submit_button("Adicionar Membro")
+            if submitted:
+                if novo_nome and novo_email:
+                    novo_id = st.session_state.membros_df['id_membro'].max() + 1 if not st.session_state.membros_df.empty else 1
+                    novo_membro_df = pd.DataFrame([{'id_membro': novo_id, 'nome': novo_nome, 'status': novo_status, 'email': novo_email}])
+                    st.session_state.membros_df = pd.concat([st.session_state.membros_df, novo_membro_df], ignore_index=True)
+                    st.success(f"Membro '{novo_nome}' adicionado com sucesso!")
+                else:
+                    st.error("Por favor, preencha o nome e o e-mail.")
+    
+    st.subheader("Lista de Membros")
+    st.dataframe(st.session_state.membros_df, use_container_width=True)
 
 elif pagina_selecionada == "Calendário":
-    st.header("Calendário de Eventos")
-    
-    st.subheader("Eventos Futuros")
-    hoje = datetime.now()
-    eventos_futuros = eventos_df[eventos_df['data'] >= hoje].sort_values('data')
-    if not eventos_futuros.empty:
-        for _, row in eventos_futuros.iterrows():
-            with st.expander(f"{row['data'].strftime('%d/%m/%Y')} - {row['evento']}"):
-                st.write(row['descricao'])
-    else:
-        st.success("Nenhum evento futuro agendado.")
-        
-    st.subheader("Eventos Passados")
-    eventos_passados = eventos_df[eventos_df['data'] < hoje].sort_values('data', ascending=False)
-    if not eventos_passados.empty:
-        st.dataframe(eventos_passados, use_container_width=True)
-    else:
-        st.info("Nenhum evento passado registrado.")
+    st.header("Gestão de Calendário")
+
+    with st.expander("🗓️ Adicionar Novo Evento"):
+        with st.form("novo_evento_form", clear_on_submit=True):
+            nova_data = st.date_input("Data do Evento")
+            novo_evento_nome = st.text_input("Nome do Evento")
+            nova_descricao = st.text_area("Descrição do Evento")
+            
+            submitted = st.form_submit_button("Adicionar Evento")
+            if submitted:
+                if nova_data and novo_evento_nome:
+                    novo_id = st.session_state.eventos_df['id_evento'].max() + 1 if not st.session_state.eventos_df.empty else 101
+                    novo_evento_df = pd.DataFrame([{
+                        'id_evento': novo_id,
+                        'data': pd.to_datetime(nova_data),
+                        'evento': novo_evento_nome,
+                        'descricao': nova_descricao
+                    }])
+                    st.session_state.eventos_df = pd.concat([st.session_state.eventos_df, novo_evento_df], ignore_index=True)
+                    st.success(f"Evento '{novo_evento_nome}' adicionado com sucesso!")
+                else:
+                    st.error("Por favor, preencha a data e o nome do evento.")
+
+    st.subheader("Lista de Eventos")
+    st.dataframe(st.session_state.eventos_df.sort_values('data', ascending=False), use_container_width=True)
 
 
 elif pagina_selecionada == "Tesouraria":
-    st.header("Controle da Tesouraria")
+    st.header("Gestão da Tesouraria")
     
-    saldo_total = tesouraria_df['valor'].sum()
+    saldo_total = st.session_state.tesouraria_df['valor'].sum()
     st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
-    
-    st.subheader("Extrato de Transações")
-    st.dataframe(tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
-    
-    # Gráfico de Entradas vs. Saídas
-    st.subheader("Análise Financeira")
-    entradas = tesouraria_df[tesouraria_df['valor'] > 0]['valor'].sum()
-    saidas = abs(tesouraria_df[tesouraria_df['valor'] < 0]['valor'].sum())
-    
-    analise_df = pd.DataFrame({
-        'Tipo': ['Entradas', 'Saídas'],
-        'Valor': [entradas, saidas]
-    })
-    
-    st.bar_chart(analise_df.set_index('Tipo'))
 
+    with st.expander("💸 Adicionar Lançamento Financeiro"):
+        with st.form("novo_lancamento_form", clear_on_submit=True):
+            data_lancamento = st.date_input("Data")
+            desc_lancamento = st.text_input("Descrição")
+            tipo_lancamento = st.selectbox("Tipo", ["Entrada", "Saída"])
+            valor_lancamento = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
+
+            submitted = st.form_submit_button("Adicionar Lançamento")
+            if submitted:
+                if desc_lancamento and valor_lancamento > 0:
+                    valor_final = valor_lancamento if tipo_lancamento == "Entrada" else -valor_lancamento
+                    novo_lancamento_df = pd.DataFrame([{
+                        'data': pd.to_datetime(data_lancamento),
+                        'descricao': desc_lancamento,
+                        'tipo': tipo_lancamento,
+                        'valor': valor_final
+                    }])
+                    st.session_state.tesouraria_df = pd.concat([st.session_state.tesouraria_df, novo_lancamento_df], ignore_index=True)
+                    st.success("Lançamento adicionado com sucesso!")
+                else:
+                    st.error("Preencha a descrição e um valor maior que zero.")
+
+    st.subheader("Extrato de Transações")
+    st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
 
 elif pagina_selecionada == "Controle de Presença":
-    st.header("Controle de Presença em Reuniões/Eventos")
+    st.header("Lançamento de Presença")
 
-    # Selecionar o evento para ver a presença
-    evento_opts = eventos_df.sort_values('data', ascending=False)
-    evento_selecionado_nome = st.selectbox(
-        "Selecione um evento para ver a lista de presença:",
-        options=evento_opts['evento']
-    )
-
-    if evento_selecionado_nome:
+    evento_opts = st.session_state.eventos_df.sort_values('data', ascending=False)
+    if not evento_opts.empty:
+        evento_selecionado_nome = st.selectbox(
+            "Selecione um evento para lançar a presença:",
+            options=evento_opts['evento']
+        )
+        
         id_evento_selecionado = evento_opts[evento_opts['evento'] == evento_selecionado_nome]['id_evento'].iloc[0]
         
-        # Filtra a presença para o evento selecionado
-        presenca_evento = presenca_df[presenca_df['id_evento'] == id_evento_selecionado]
-        
-        if not presenca_evento.empty:
-            # Junta as informações de presença com os nomes dos membros
-            resultado_presenca = pd.merge(
-                presenca_evento,
-                membros_df,
-                on='id_membro',
-                how='left'
-            )
-            
-            # Mapeia True/False para Presente/Ausente
-            resultado_presenca['presente'] = resultado_presenca['presente'].map({True: 'Presente ✅', False: 'Ausente ❌'})
-            
-            st.dataframe(resultado_presenca[['nome', 'status', 'presente']].rename(columns={
-                'nome': 'Nome do Membro',
-                'status': 'Status',
-                'presente': 'Presença'
-            }), use_container_width=True)
+        # Membros ativos que ainda não têm presença registrada para este evento
+        membros_ja_registrados = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]['id_membro']
+        membros_ativos_para_chamada = st.session_state.membros_df[
+            (st.session_state.membros_df['status'] == 'Ativo') &
+            (~st.session_state.membros_df['id_membro'].isin(membros_ja_registrados))
+        ]
 
-            # Calcula a porcentagem de presença
-            total_presentes = resultado_presenca['presente'].value_counts().get('Presente ✅', 0)
-            total_na_lista = len(resultado_presenca)
-            percentual = (total_presentes / total_na_lista) * 100 if total_na_lista > 0 else 0
-            st.progress(int(percentual))
-            st.markdown(f"**{total_presentes} de {total_na_lista} membros compareceram ({percentual:.2f}% de presença).**")
-
+        if not membros_ativos_para_chamada.empty:
+            with st.form("chamada_form"):
+                st.write(f"**Fazendo a chamada para: {evento_selecionado_nome}**")
+                presencas = {}
+                for _, membro in membros_ativos_para_chamada.iterrows():
+                    presencas[membro['id_membro']] = st.checkbox(f"Presente - {membro['nome']}", key=membro['id_membro'])
+                
+                submitted = st.form_submit_button("Salvar Presenças")
+                if submitted:
+                    novas_presencas_list = []
+                    for id_membro, presente in presencas.items():
+                        novas_presencas_list.append({
+                            'id_evento': id_evento_selecionado,
+                            'id_membro': id_membro,
+                            'presente': presente
+                        })
+                    
+                    if novas_presencas_list:
+                        novas_presencas_df = pd.DataFrame(novas_presencas_list)
+                        st.session_state.presenca_df = pd.concat([st.session_state.presenca_df, novas_presencas_df], ignore_index=True)
+                        st.success("Lista de presença salva com sucesso!")
+                        st.rerun() # Atualiza a página para remover os membros da lista
+                    else:
+                        st.warning("Nenhuma presença foi marcada.")
         else:
-            st.warning("Ainda não há lista de presença registrada para este evento.")
+            st.info("Todos os membros ativos já tiveram sua presença registrada para este evento.")
 
-
+        # Exibir a lista de presença consolidada para o evento
+        st.subheader(f"Resumo de Presença - {evento_selecionado_nome}")
+        presenca_evento = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]
+        if not presenca_evento.empty:
+            resultado_presenca = pd.merge(presenca_evento, st.session_state.membros_df, on='id_membro', how='left')
+            resultado_presenca['presente'] = resultado_presenca['presente'].map({True: 'Presente ✅', False: 'Ausente ❌'})
+            st.dataframe(resultado_presenca[['nome', 'status', 'presente']], use_container_width=True)
+        else:
+            st.warning("Nenhuma presença registrada para este evento ainda.")
+    else:
+        st.warning("Nenhum evento cadastrado. Adicione eventos na página 'Calendário' primeiro.")
