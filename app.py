@@ -48,10 +48,14 @@ def initialize_data():
             'valor': [20.00, -15.50, 20.00]
         })
 
+    # --- CORREÇÃO APLICADA AQUI ---
     if 'presenca_df' not in st.session_state:
+        # A forma de criar o DataFrame vazio foi ajustada para evitar o TypeError.
         st.session_state.presenca_df = pd.DataFrame({
-            'id_evento': [], 'id_membro': [], 'presente': []
-        }, dtype={'id_evento': int, 'id_membro': int, 'presente': bool})
+            'id_evento': pd.Series(dtype='int'),
+            'id_membro': pd.Series(dtype='int'),
+            'presente': pd.Series(dtype='bool')
+        })
 
 
 # Chamada da função de inicialização
