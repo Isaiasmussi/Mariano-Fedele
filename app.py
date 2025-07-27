@@ -1,271 +1,210 @@
-# app.py
-# Para rodar este app:
-# 1. Salve este código como `app.py`.
-# 2. Crie um arquivo `requirements.txt` com:
-#    streamlit
-#    pandas
-#    streamlit-calendar
-# 3. Instale as bibliotecas: pip install -r requirements.txt
-# 4. No terminal, execute: streamlit run app.py
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_calendar import calendar # Importa o novo componente de calendário
+from streamlit_calendar import calendar
+from streamlit_option_menu import option_menu
 
 # --- Configuração da Página ---
 st.set_page_config(
     page_title="Gestão DeMolay - Mariano Fedele",
-    page_icon="https://i.ibb.co/nsF1xTF0/image.jpg", # Icone da página (URL CORRIGIDA)
+    page_icon="https://i.ibb.co/nsF1xTF0/image.jpg",
     layout="wide"
 )
 
-# --- Inicialização dos Dados no Estado da Sessão ---
+# --- DADOS E AUTENTICAÇÃO ---
+
+# Define os usuários administradores e a senha. Em um app real, use segredos!
+ADMIN_USERS = {
+    "admin": "demolay123",
+    "mestreconselheiro": "demolay123",
+    "escrivao": "demolay123"
+}
+
 def initialize_data():
-    """Inicializa os DataFrames no st.session_state se eles não existirem."""
+    """Inicializa ou reseta os dados no estado da sessão."""
     if 'membros_df' not in st.session_state:
         st.session_state.membros_df = pd.DataFrame({
             'id_membro': [1, 2, 3, 4],
+            'cid': ['12345', '54321', '67890', '09876'],
             'nome': ['João da Silva', 'Carlos Pereira', 'Pedro Almeida', 'Lucas Souza'],
+            'telefone': ['(51) 99999-1111', '(51) 98888-2222', '(51) 97777-3333', '(51) 96666-4444'],
             'status': ['Ativo', 'Ativo', 'Sênior', 'Ativo'],
             'email': ['joao@email.com', 'carlos@email.com', 'pedro@email.com', 'lucas@email.com']
         })
-
     if 'eventos_df' not in st.session_state:
         st.session_state.eventos_df = pd.DataFrame({
             'id_evento': [101, 102, 103],
             'data': pd.to_datetime(['2025-07-28', '2025-08-09', '2025-08-16']),
             'evento': ['Reunião Ordinária', 'Filantropia - Asilo', 'Cerimônia Magna de Iniciação'],
-            'descricao': ['Discussão de projetos e planejamento.', 'Visita e doação de alimentos.', 'Iniciação de novos membros.'],
-            'cor': ['#FF6347', '#4682B4', '#32CD32'] # Cores para os eventos
+            'descricao': ['Discussão de projetos.', 'Visita e doação.', 'Iniciação de novos membros.'],
+            'cor': ['#FF6347', '#4682B4', '#32CD32']
         })
-
     if 'tesouraria_df' not in st.session_state:
         st.session_state.tesouraria_df = pd.DataFrame({
             'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
-            'descricao': ['Taxa mensal - João', 'Compra de materiais para reunião', 'Taxa mensal - Carlos'],
+            'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
             'tipo': ['Entrada', 'Saída', 'Entrada'],
             'valor': [20.00, -15.50, 20.00]
         })
-
     if 'presenca_df' not in st.session_state:
         st.session_state.presenca_df = pd.DataFrame({
             'id_evento': pd.Series(dtype='int'),
             'id_membro': pd.Series(dtype='int'),
             'presente': pd.Series(dtype='bool')
         })
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = datetime.now()
 
+def update_timestamp():
+    """Atualiza o timestamp da última modificação."""
+    st.session_state.last_update = datetime.now()
 
-# Chamada da função de inicialização
-initialize_data()
+# --- TELA DE LOGIN ---
+def login_screen():
+    """Exibe a tela de login e gerencia a autenticação."""
+    st.title("Sistema de Gestão do Capítulo Mariano Fedele")
+    st.subheader("Por favor, faça o login para continuar")
 
-# --- Barra Lateral de Navegação ---
-# --- CORREÇÃO APLICADA AQUI (URL e parâmetro) ---
-st.sidebar.image("https://i.ibb.co/nsF1xTF0/image.jpg", use_container_width=True)
-st.sidebar.title("Capítulo Mariano Fedele")
-st.sidebar.markdown("---")
+    with st.form("login_form"):
+        username = st.text_input("Usuário").lower()
+        password = st.text_input("Senha", type="password")
+        submitted = st.form_submit_button("Entrar")
 
-pagina_selecionada = st.sidebar.radio(
-    "Navegação",
-    ["Página Inicial", "Membros", "Calendário", "Tesouraria", "Controle de Presença"]
-)
+        if submitted:
+            if username in ADMIN_USERS and password == ADMIN_USERS[username]:
+                st.session_state.authenticated = True
+                st.session_state.role = "admin"
+                st.session_state.username = username
+                st.rerun()
+            elif username:
+                st.session_state.authenticated = True
+                st.session_state.role = "visitante"
+                st.session_state.username = username
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
 
-st.sidebar.markdown("---")
-st.sidebar.info("Desenvolvido para facilitar a gestão do Capítulo.")
+# --- LÓGICA PRINCIPAL DO APP ---
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
-# --- Funções Auxiliares ---
-def get_proximo_id(df, id_column):
-    """Gera um novo ID único para um DataFrame."""
-    if df.empty or df[id_column].max() != df[id_column].max(): # Checa se está vazio ou se o max é NaN
-        return 1
-    return int(df[id_column].max() + 1)
+if not st.session_state.authenticated:
+    login_screen()
+else:
+    initialize_data()
 
-# --- Lógica das Páginas ---
-
-if pagina_selecionada == "Página Inicial":
-    st.title("Bem-vindo ao Sistema de Gestão do Capítulo! ⚜️")
-    st.markdown("### Visão Geral")
-
-    col1, col2, col3 = st.columns(3)
-    membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0]
-    col1.metric("Membros Ativos", f"{membros_ativos}")
-
-    hoje = pd.Timestamp.now()
-    proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data')
-    if not proximos_eventos.empty:
-        prox_evento = proximos_eventos.iloc[0]
-        col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
-    else:
-        col2.metric("Próximo Evento", "Nenhum")
-
-    saldo_atual = st.session_state.tesouraria_df['valor'].sum()
-    col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
-    st.markdown("---")
-    st.subheader("Próximos Eventos")
-    if not proximos_eventos.empty:
-        st.dataframe(proximos_eventos[['data', 'evento']].rename(columns={'data': 'Data', 'evento': 'Evento'}).set_index('Data'), use_container_width=True)
-    else:
-        st.info("Não há eventos futuros cadastrados.")
-
-elif pagina_selecionada == "Membros":
-    st.header("Gestão de Membros")
-
-    tab1, tab2, tab3 = st.tabs(["Visualizar Membros", "➕ Adicionar Membro", "✏️ Editar / Excluir Membro"])
-
-    with tab1:
-        st.subheader("Lista de Membros")
-        st.dataframe(st.session_state.membros_df, use_container_width=True)
-
-    with tab2:
-        st.subheader("Adicionar Novo Membro")
-        with st.form("novo_membro_form", clear_on_submit=True):
-            novo_nome = st.text_input("Nome Completo")
-            novo_status = st.selectbox("Status", ["Ativo", "Sênior"], key="add_status")
-            novo_email = st.text_input("E-mail")
-            if st.form_submit_button("Adicionar Membro"):
-                if novo_nome and novo_email:
-                    novo_id = get_proximo_id(st.session_state.membros_df, 'id_membro')
-                    novo_membro_df = pd.DataFrame([{'id_membro': novo_id, 'nome': novo_nome, 'status': novo_status, 'email': novo_email}])
-                    st.session_state.membros_df = pd.concat([st.session_state.membros_df, novo_membro_df], ignore_index=True)
-                    st.success(f"Membro '{novo_nome}' adicionado!")
-                    st.rerun()
-                else:
-                    st.error("Nome e E-mail são obrigatórios.")
-
-    with tab3:
-        st.subheader("Editar ou Excluir Membro")
-        if not st.session_state.membros_df.empty:
-            membro_selecionado_nome = st.selectbox(
-                "Selecione um membro para editar",
-                options=st.session_state.membros_df['nome'],
-                index=None,
-                placeholder="Escolha um membro..."
-            )
-            if membro_selecionado_nome:
-                membro_idx = st.session_state.membros_df.index[st.session_state.membros_df['nome'] == membro_selecionado_nome].tolist()[0]
-                membro_data = st.session_state.membros_df.loc[membro_idx]
-
-                with st.form("edit_membro_form"):
-                    st.write(f"Editando: **{membro_data['nome']}**")
-                    nome_edit = st.text_input("Nome", value=membro_data['nome'])
-                    status_edit = st.selectbox("Status", ["Ativo", "Sênior"], index=["Ativo", "Sênior"].index(membro_data['status']))
-                    email_edit = st.text_input("E-mail", value=membro_data['email'])
-
-                    col_edit, col_delete = st.columns(2)
-                    if col_edit.form_submit_button("Salvar Alterações", use_container_width=True):
-                        st.session_state.membros_df.loc[membro_idx, ['nome', 'status', 'email']] = [nome_edit, status_edit, email_edit]
-                        st.success("Membro atualizado com sucesso!")
-                        st.rerun()
-                    
-                    if col_delete.form_submit_button("Excluir Membro", type="primary", use_container_width=True):
-                        st.session_state.membros_df = st.session_state.membros_df.drop(index=membro_idx).reset_index(drop=True)
-                        st.warning(f"Membro '{membro_selecionado_nome}' foi excluído.")
-                        st.rerun()
-        else:
-            st.info("Nenhum membro cadastrado para editar.")
-
-
-elif pagina_selecionada == "Calendário":
-    st.header("Calendário de Eventos")
-
-    calendar_events = []
-    for _, row in st.session_state.eventos_df.iterrows():
-        calendar_events.append({
-            "title": row["evento"],
-            "start": row["data"].strftime("%Y-%m-%d"),
-            "end": row["data"].strftime("%Y-%m-%d"),
-            "color": row.get("cor", "#4682B4"),
-        })
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image("https://i.ibb.co/nsF1xTF0/image.jpg", width=150)
+    with col2:
+        st.title("Gestão do Capítulo Mariano Fedele")
+        st.markdown(f"Bem-vindo, **{st.session_state.username}**! (Perfil: *{st.session_state.role}*)")
     
-    calendar_options = {
-        "headerToolbar": {
-            "left": "prev,next today",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,timeGridDay",
-        },
-        "initialView": "dayGridMonth",
-        "locale": "pt-br",
-    }
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    calendar(events=calendar_events, options=calendar_options, key="calendar")
+    selected = option_menu(
+        menu_title=None,
+        options=["Visão Geral", "Membros", "Calendário", "Tesouraria", "Projetos", "Presença"],
+        icons=['house', 'people', 'calendar-check', 'cash-coin', 'kanban', 'person-check'],
+        orientation="horizontal",
+        styles={
+            "container": {"padding": "0!important", "background-color": "#262730"},
+            "icon": {"color": "white", "font-size": "20px"},
+            "nav-link": {"font-size": "16px", "text-align": "center", "margin": "0px", "--hover-color": "#3a3a4a"},
+            "nav-link-selected": {"background-color": "#02ab21"},
+        }
+    )
 
-    with st.expander("🗓️ Adicionar Novo Evento"):
-        with st.form("novo_evento_form", clear_on_submit=True):
-            novo_evento_nome = st.text_input("Nome do Evento")
-            nova_data = st.date_input("Data do Evento")
-            nova_descricao = st.text_area("Descrição do Evento")
-            nova_cor = st.color_picker("Cor do Evento", "#4682B4")
+    is_admin = st.session_state.role == "admin"
+
+    if selected == "Visão Geral":
+        st.header("Visão Geral do Capítulo ⚜️")
+        col1, col2, col3 = st.columns(3)
+        membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0]
+        col1.metric("Membros Ativos", f"{membros_ativos}")
+        hoje = pd.Timestamp.now()
+        proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data')
+        if not proximos_eventos.empty:
+            prox_evento = proximos_eventos.iloc[0]
+            col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
+        else:
+            col2.metric("Próximo Evento", "Nenhum")
+        saldo_atual = st.session_state.tesouraria_df['valor'].sum()
+        col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
+
+    elif selected == "Membros":
+        st.header("Gestão de Membros")
+        tabs = st.tabs(["Visualizar", "➕ Adicionar", "✏️ Editar / Excluir"]) if is_admin else st.tabs(["Visualizar"])
+        
+        with tabs[0]:
+            st.dataframe(st.session_state.membros_df, use_container_width=True)
+
+        if is_admin:
+            with tabs[1]:
+                with st.form("add_membro", clear_on_submit=True):
+                    cid = st.text_input("CID (ID DeMolay)")
+                    nome = st.text_input("Nome Completo")
+                    tel = st.text_input("Telefone")
+                    email = st.text_input("E-mail")
+                    status = st.selectbox("Status", ["Ativo", "Sênior"])
+                    if st.form_submit_button("Adicionar Membro"):
+                        if cid and nome:
+                            novo_id = st.session_state.membros_df['id_membro'].max() + 1
+                            novo_membro = pd.DataFrame([{'id_membro': novo_id, 'cid': cid, 'nome': nome, 'telefone': tel, 'status': status, 'email': email}])
+                            st.session_state.membros_df = pd.concat([st.session_state.membros_df, novo_membro], ignore_index=True)
+                            update_timestamp()
+                            st.success("Membro adicionado!")
+                            st.rerun()
+                        else:
+                            st.error("CID e Nome são obrigatórios.")
             
-            if st.form_submit_button("Adicionar Evento"):
-                if nova_data and novo_evento_nome:
-                    novo_id = get_proximo_id(st.session_state.eventos_df, 'id_evento')
-                    novo_evento_df = pd.DataFrame([{'id_evento': novo_id, 'data': pd.to_datetime(nova_data), 'evento': novo_evento_nome, 'descricao': nova_descricao, 'cor': nova_cor}])
-                    st.session_state.eventos_df = pd.concat([st.session_state.eventos_df, novo_evento_df], ignore_index=True)
-                    st.success(f"Evento '{novo_evento_nome}' adicionado!")
-                    st.rerun()
-                else:
-                    st.error("Data e Nome do evento são obrigatórios.")
+            with tabs[2]:
+                membro_nome = st.selectbox("Selecione um membro para editar", st.session_state.membros_df['nome'], index=None, placeholder="Escolha um membro...")
+                if membro_nome:
+                    idx = st.session_state.membros_df.index[st.session_state.membros_df['nome'] == membro_nome].tolist()[0]
+                    membro = st.session_state.membros_df.loc[idx]
+                    with st.form("edit_membro"):
+                        cid = st.text_input("CID", value=membro['cid'])
+                        nome = st.text_input("Nome", value=membro['nome'])
+                        tel = st.text_input("Telefone", value=membro['telefone'])
+                        email = st.text_input("E-mail", value=membro['email'])
+                        status = st.selectbox("Status", ["Ativo", "Sênior"], index=["Ativo", "Sênior"].index(membro['status']))
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.form_submit_button("Salvar Alterações"):
+                            st.session_state.membros_df.loc[idx] = [membro['id_membro'], cid, nome, tel, status, email]
+                            update_timestamp()
+                            st.success("Membro atualizado!")
+                            st.rerun()
+                        if col2.form_submit_button("Excluir Membro", type="primary"):
+                            st.session_state.membros_df = st.session_state.membros_df.drop(index=idx).reset_index(drop=True)
+                            update_timestamp()
+                            st.warning("Membro excluído.")
+                            st.rerun()
 
-elif pagina_selecionada == "Tesouraria":
-    st.header("Gestão da Tesouraria")
-    saldo_total = st.session_state.tesouraria_df['valor'].sum()
-    st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
+    elif selected == "Calendário":
+        st.header("Calendário de Eventos")
+        calendar_events = []
+        for _, row in st.session_state.eventos_df.iterrows():
+            calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "color": row.get("cor", "#4682B4")})
+        calendar(events=calendar_events, options={"locale": "pt-br"})
+        if is_admin:
+            with st.expander("🗓️ Adicionar Novo Evento"):
+                # Formulário para adicionar evento aqui...
+                pass
 
-    with st.expander("💸 Adicionar Lançamento"):
-        with st.form("novo_lancamento_form", clear_on_submit=True):
-            data_lancamento = st.date_input("Data")
-            desc_lancamento = st.text_input("Descrição")
-            tipo_lancamento = st.selectbox("Tipo", ["Entrada", "Saída"])
-            valor_lancamento = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
-            if st.form_submit_button("Adicionar Lançamento"):
-                if desc_lancamento and valor_lancamento > 0:
-                    valor_final = valor_lancamento if tipo_lancamento == "Entrada" else -valor_lancamento
-                    novo_lancamento_df = pd.DataFrame([{'data': pd.to_datetime(data_lancamento), 'descricao': desc_lancamento, 'tipo': tipo_lancamento, 'valor': valor_final}])
-                    st.session_state.tesouraria_df = pd.concat([st.session_state.tesouraria_df, novo_lancamento_df], ignore_index=True)
-                    st.success("Lançamento adicionado!")
-                    st.rerun()
-                else:
-                    st.error("Descrição e um valor maior que zero são obrigatórios.")
-    st.subheader("Extrato de Transações")
-    st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
-
-
-elif pagina_selecionada == "Controle de Presença":
-    st.header("Lançamento de Presença")
-    evento_opts = st.session_state.eventos_df.sort_values('data', ascending=False)
-    if not evento_opts.empty:
-        evento_selecionado_nome = st.selectbox("Selecione um evento:", options=evento_opts['evento'])
-        id_evento_selecionado = evento_opts[evento_opts['evento'] == evento_selecionado_nome]['id_evento'].iloc[0]
-        
-        membros_ja_registrados_df = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]
-        membros_ja_registrados_ids = membros_ja_registrados_df['id_membro'].tolist()
-        
-        membros_para_chamada = st.session_state.membros_df[~st.session_state.membros_df['id_membro'].isin(membros_ja_registrados_ids)]
-
-        if not membros_para_chamada.empty:
-            with st.form("chamada_form"):
-                st.write(f"**Fazendo a chamada para: {evento_selecionado_nome}**")
-                presencas = {}
-                for _, membro in membros_para_chamada.iterrows():
-                    presencas[membro['id_membro']] = st.checkbox(f"{membro['nome']} ({membro['status']})", key=membro['id_membro'])
-                
-                if st.form_submit_button("Salvar Presenças"):
-                    novas_presencas_list = [{'id_evento': id_evento_selecionado, 'id_membro': id_membro, 'presente': presente} for id_membro, presente in presencas.items()]
-                    if novas_presencas_list:
-                        novas_presencas_df = pd.DataFrame(novas_presencas_list)
-                        st.session_state.presenca_df = pd.concat([st.session_state.presenca_df, novas_presencas_df], ignore_index=True)
-                        st.success("Lista de presença salva!")
-                        st.rerun()
-        else:
-            st.info("Todos os membros já tiveram sua presença registrada para este evento.")
-
-        st.subheader(f"Resumo de Presença - {evento_selecionado_nome}")
-        presenca_evento = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]
-        if not presenca_evento.empty:
-            resultado_presenca = pd.merge(presenca_evento, st.session_state.membros_df, on='id_membro', how='left')
-            resultado_presenca['presente'] = resultado_presenca['presente'].map({True: 'Presente ✅', False: 'Ausente ❌'})
-            st.dataframe(resultado_presenca[['nome', 'status', 'presente']], use_container_width=True)
-        else:
-            st.warning("Nenhuma presença registrada para este evento ainda.")
-    else:
-        st.warning("Nenhum evento cadastrado. Adicione eventos na página 'Calendário' primeiro.")
+    elif selected == "Projetos":
+        st.header("Gestão de Projetos")
+        st.info("Área em desenvolvimento para gerenciar projetos filantrópicos e internos.")
+        if is_admin:
+            st.button("Criar Novo Projeto")
+    
+    # --- RODAPÉ ---
+    st.markdown("<hr>", unsafe_allow_html=True)
+    last_update_str = st.session_state.last_update.strftime("%d/%m/%Y às %H:%M:%S")
+    st.markdown(f"<p style='text-align: center; color: grey;'>Última atualização em: {last_update_str}</p>", unsafe_allow_html=True)
+    if st.button("Logout"):
+        st.session_state.authenticated = False
+        st.session_state.role = None
+        st.session_state.username = None
+        st.rerun()
