@@ -16,7 +16,7 @@ from streamlit_calendar import calendar # Importa o novo componente de calendár
 # --- Configuração da Página ---
 st.set_page_config(
     page_title="Gestão DeMolay - Mariano Fedele",
-    page_icon="https://i.ibb.co/nsF1xTF/image.jpg", # Icone da página
+    page_icon="https://i.ibb.co/nsF1xTF0/image.jpg", # Icone da página (URL CORRIGIDA)
     layout="wide"
 )
 
@@ -48,9 +48,7 @@ def initialize_data():
             'valor': [20.00, -15.50, 20.00]
         })
 
-    # --- CORREÇÃO APLICADA AQUI ---
     if 'presenca_df' not in st.session_state:
-        # A forma de criar o DataFrame vazio foi ajustada para evitar o TypeError.
         st.session_state.presenca_df = pd.DataFrame({
             'id_evento': pd.Series(dtype='int'),
             'id_membro': pd.Series(dtype='int'),
@@ -62,7 +60,8 @@ def initialize_data():
 initialize_data()
 
 # --- Barra Lateral de Navegação ---
-st.sidebar.image("https://i.ibb.co/nsF1xTF/image.jpg", use_column_width=True)
+# --- CORREÇÃO APLICADA AQUI (URL e parâmetro) ---
+st.sidebar.image("https://i.ibb.co/nsF1xTF0/image.jpg", use_container_width=True)
 st.sidebar.title("Capítulo Mariano Fedele")
 st.sidebar.markdown("---")
 
@@ -169,17 +168,15 @@ elif pagina_selecionada == "Membros":
 elif pagina_selecionada == "Calendário":
     st.header("Calendário de Eventos")
 
-    # Formatar eventos para o componente de calendário
     calendar_events = []
     for _, row in st.session_state.eventos_df.iterrows():
         calendar_events.append({
             "title": row["evento"],
             "start": row["data"].strftime("%Y-%m-%d"),
             "end": row["data"].strftime("%Y-%m-%d"),
-            "color": row.get("cor", "#4682B4"), # Usa uma cor padrão se não houver
+            "color": row.get("cor", "#4682B4"),
         })
     
-    # Configurações do Calendário
     calendar_options = {
         "headerToolbar": {
             "left": "prev,next today",
@@ -187,10 +184,9 @@ elif pagina_selecionada == "Calendário":
             "right": "dayGridMonth,timeGridWeek,timeGridDay",
         },
         "initialView": "dayGridMonth",
-        "locale": "pt-br", # Traduz para o português
+        "locale": "pt-br",
     }
 
-    # Renderizar o calendário
     calendar(events=calendar_events, options=calendar_options, key="calendar")
 
     with st.expander("🗓️ Adicionar Novo Evento"):
