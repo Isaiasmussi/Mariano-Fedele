@@ -124,7 +124,8 @@ else:
     if selected == "Tesouraria":
         st.header("Gestão da Tesouraria")
         
-        tab_options = ["Extrato", "Controle de Mensalidades", "Projeção Financeira", "Adicionar Lançamento"] if is_admin else ["Extrato", "Controle de Mensalidades"]
+        # --- ALTERAÇÃO NA ORDEM DAS ABAS ---
+        tab_options = ["Extrato", "Adicionar Lançamento", "Controle de Mensalidades", "Projeção Financeira"] if is_admin else ["Extrato", "Controle de Mensalidades"]
         tabs = st.tabs(tab_options)
         
         with tabs[0]: # Extrato
@@ -132,14 +133,31 @@ else:
             st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
             st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
 
-        with tabs[1]: # Mensalidades
-            membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
-            status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
-            
-            st.subheader("Status das Mensalidades")
-            st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
+        # A ordem das abas foi alterada, então o código precisa corresponder à nova ordem
+        if is_admin:
+            with tabs[1]: # Adicionar Lançamento
+                st.subheader("Adicionar Novo Lançamento")
+                with st.form("add_transacao", clear_on_submit=True):
+                    desc = st.text_input("Descrição")
+                    data = st.date_input("Data")
+                    tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+                    valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f")
+                    if st.form_submit_button("Adicionar"):
+                        valor_final = valor if tipo == "Entrada" else -valor
+                        novo_id = get_proximo_id(st.session_state.tesouraria_df, 'id_transacao')
+                        nova_transacao = pd.DataFrame([{'id_transacao': novo_id, 'data': pd.to_datetime(data), 'descricao': desc, 'tipo': tipo, 'valor': valor_final}])
+                        st.session_state.tesouraria_df = pd.concat([st.session_state.tesouraria_df, nova_transacao], ignore_index=True)
+                        update_timestamp()
+                        st.success("Lançamento adicionado!")
+                        st.rerun()
 
-            if is_admin:
+            with tabs[2]: # Controle de Mensalidades
+                membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
+                status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
+                
+                st.subheader("Status das Mensalidades")
+                st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
+
                 with st.expander("Alterar Status de Pagamento"):
                     membro_select = st.selectbox("Selecione o Membro", options=status_mensalidades['nome'], key="sel_membro_mensal")
                     novo_status = st.radio("Novo Status", ['Adimplente', 'Inadimplente'], key="rad_status_mensal")
@@ -152,28 +170,21 @@ else:
                         st.success(f"Status de {membro_select} atualizado para {novo_status}!")
                         st.rerun()
 
-        if is_admin:
-            with tabs[2]: # Projeção Financeira
+            with tabs[3]: # Projeção Financeira
                 st.subheader("Projeção de Fluxo de Caixa")
-                
-                # Setup
                 today = datetime.today()
                 meses_nomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
                 projecao_data = []
                 saldo_atual = st.session_state.tesouraria_df['valor'].sum()
                 receita_mensalidades = len(st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']) * VALOR_MENSALIDADE
 
-                # Inputs para valores extras
                 st.write("Adicione entradas ou saídas extras para simular cenários:")
                 cols = st.columns(4)
-                
                 saldo_projetado = saldo_atual
                 
                 for i in range(today.month, 13):
                     mes_ano_key = f"{i}-{today.year}"
                     mes_nome = meses_nomes[i-1]
-                    
-                    # Inicializa valores no session_state se não existirem
                     if mes_ano_key not in st.session_state.projecao_extras:
                         st.session_state.projecao_extras[mes_ano_key] = {'entradas': 0.0, 'saidas': 0.0}
 
@@ -185,37 +196,28 @@ else:
 
                 st.divider()
                 st.subheader("Resultado da Projeção")
-
-                # Geração da tabela de projeção
                 for i in range(today.month, 13):
                     mes_ano_key = f"{i}-{today.year}"
                     mes_nome = meses_nomes[i-1]
-                    
                     entradas_extras = st.session_state.projecao_extras[mes_ano_key]['entradas']
                     saidas_extras = st.session_state.projecao_extras[mes_ano_key]['saidas']
-                    
                     saldo_final_mes = saldo_projetado + receita_mensalidades + entradas_extras - saidas_extras
-                    
                     projecao_data.append({
-                        "Mês": mes_nome,
-                        "Saldo Inicial": f"R$ {saldo_projetado:,.2f}",
+                        "Mês": mes_nome, "Saldo Inicial": f"R$ {saldo_projetado:,.2f}",
                         "Receita (Mensalidades)": f"R$ {receita_mensalidades:,.2f}",
-                        "Entradas Extras": f"R$ {entradas_extras:,.2f}",
-                        "Saídas Extras": f"R$ {saidas_extras:,.2f}",
+                        "Entradas Extras": f"R$ {entradas_extras:,.2f}", "Saídas Extras": f"R$ {saidas_extras:,.2f}",
                         "Saldo Final Projetado": f"R$ {saldo_final_mes:,.2f}"
                     })
-                    
                     saldo_projetado = saldo_final_mes
-
                 projecao_df = pd.DataFrame(projecao_data)
                 st.dataframe(projecao_df, use_container_width=True)
+        else: # Se não for admin, só mostra a aba de mensalidades após o extrato
+             with tabs[1]:
+                membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
+                status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
+                st.subheader("Status das Mensalidades")
+                st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
 
-
-            with tabs[3]: # Adicionar Lançamento
-                with st.form("add_transacao", clear_on_submit=True):
-                    # ... (código do formulário)
-                    pass
-    
     # ... (outras páginas como Visão Geral, Membros, Calendário, etc.)
 
     # --- RODAPÉ ---
