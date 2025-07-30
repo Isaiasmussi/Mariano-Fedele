@@ -1,5 +1,5 @@
 # app.py
-# Versão Final com Edição de Calendário e Persistência de Dados
+# Versão Final com Correção de Bug de Inicialização
 
 import streamlit as st
 import pandas as pd
@@ -97,9 +97,7 @@ def load_data():
         st.session_state.projecao_extras = {}
     if 'last_update' not in st.session_state:
         st.session_state.last_update = datetime.now()
-    if 'clicked_event_id' not in st.session_state:
-        st.session_state.clicked_event_id = None
-
+    
 def get_proximo_id(df, id_column):
     if df.empty or not df[id_column].any():
         return 1
@@ -139,6 +137,10 @@ else:
         load_data()
         # Salva os arquivos iniciais se eles não existiam
         save_data()
+
+    # --- CORREÇÃO APLICADA AQUI: Garante que a chave do calendário sempre exista ---
+    if 'clicked_event_id' not in st.session_state:
+        st.session_state.clicked_event_id = None
 
     is_admin = st.session_state.role == "Admin"
 
@@ -237,7 +239,6 @@ else:
         
         clicked_event_info = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
 
-        # --- LÓGICA DE EDIÇÃO CORRIGIDA ---
         if is_admin and clicked_event_info and 'id' in clicked_event_info:
             st.session_state.clicked_event_id = int(clicked_event_info['id'])
 
