@@ -21,7 +21,7 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 25.00
+VALOR_MENSALIDADE = 20.00
 
 def get_proximo_id(df, id_column):
     """Gera um novo ID único para um DataFrame."""
@@ -48,9 +48,7 @@ def initialize_data():
         })
     if 'tesouraria_df' not in st.session_state:
         st.session_state.tesouraria_df = pd.DataFrame({
-            'id_transacao': [1, 2, 3], 'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
-            'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
-            'tipo': ['Entrada', 'Saída', 'Entrada'], 'valor': [20.00, -15.50, 20.00]
+            
         })
     if 'mensalidades_df' not in st.session_state:
         st.session_state.mensalidades_df = pd.DataFrame({
