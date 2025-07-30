@@ -1,5 +1,5 @@
 # app.py
-# Versão Final com Correção de Bug de Inicialização
+# Versão Final com UI do Calendário ajustada
 
 import streamlit as st
 import pandas as pd
@@ -138,10 +138,6 @@ else:
         # Salva os arquivos iniciais se eles não existiam
         save_data()
 
-    # --- CORREÇÃO APLICADA AQUI: Garante que a chave do calendário sempre exista ---
-    if 'clicked_event_id' not in st.session_state:
-        st.session_state.clicked_event_id = None
-
     is_admin = st.session_state.role == "Admin"
 
     col1, col2 = st.columns([1, 4])
@@ -237,38 +233,15 @@ else:
         for _, row in st.session_state.eventos_df.iterrows():
             calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "id": row["id_evento"], "color": row.get("cor", "#4682B4")})
         
-        clicked_event_info = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
+        # --- ALTERAÇÃO NO TAMANHO DO CALENDÁRIO ---
+        calendar_css = """
+        .fc-view-harness {
+            height: 400px;
+        }
+        """
+        calendar(events=calendar_events, options={"locale": "pt-br"}, custom_css=calendar_css, key="calendar_main")
 
-        if is_admin and clicked_event_info and 'id' in clicked_event_info:
-            st.session_state.clicked_event_id = int(clicked_event_info['id'])
-
-        if is_admin and st.session_state.clicked_event_id:
-            event_id = st.session_state.clicked_event_id
-            if event_id in st.session_state.eventos_df['id_evento'].values:
-                evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
-                
-                with st.expander("Editar ou Excluir Evento Selecionado", expanded=True):
-                    with st.form(f"edit_event_{event_id}"):
-                        st.write(f"**Editando:** {evento_data['evento']}")
-                        evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
-                        data_edit = st.date_input("Data", value=pd.to_datetime(evento_data['data']))
-                        cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
-                        
-                        col1, col2 = st.columns(2)
-                        if col1.form_submit_button("Salvar Alterações"):
-                            idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
-                            st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
-                            st.session_state.clicked_event_id = None # Limpa o evento selecionado
-                            save_data()
-                            st.success("Evento atualizado!")
-                            st.rerun()
-                        if col2.form_submit_button("Excluir Evento", type="primary"):
-                            st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
-                            st.session_state.clicked_event_id = None # Limpa o evento selecionado
-                            save_data()
-                            st.warning("Evento excluído.")
-                            st.rerun()
-
+        # --- ALTERAÇÃO NO MÉTODO DE EDIÇÃO ---
         if is_admin:
             with st.expander("Adicionar Novo Evento"):
                 with st.form("add_evento", clear_on_submit=True):
@@ -282,6 +255,39 @@ else:
                         save_data()
                         st.success("Evento adicionado!")
                         st.rerun()
+
+            with st.expander("Editar ou Excluir Evento Existente"):
+                if not st.session_state.eventos_df.empty:
+                    eventos_sorted = st.session_state.eventos_df.sort_values('data', ascending=False)
+                    options_list = [f"{row['data'].strftime('%d/%m/%Y')} - {row['evento']}" for _, row in eventos_sorted.iterrows()]
+                    id_map = {f"{row['data'].strftime('%d/%m/%Y')} - {row['evento']}": row['id_evento'] for _, row in eventos_sorted.iterrows()}
+                    
+                    evento_selecionado_str = st.selectbox("Selecione um evento para editar", options=options_list, index=None, placeholder="Escolha um evento...")
+
+                    if evento_selecionado_str:
+                        event_id = id_map[evento_selecionado_str]
+                        evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
+                        
+                        with st.form(f"edit_event_{event_id}"):
+                            st.write(f"**Editando:** {evento_data['evento']}")
+                            evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
+                            data_edit = st.date_input("Data", value=pd.to_datetime(evento_data['data']))
+                            cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
+                            
+                            col1, col2 = st.columns(2)
+                            if col1.form_submit_button("Salvar Alterações"):
+                                idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
+                                st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
+                                save_data()
+                                st.success("Evento atualizado!")
+                                st.rerun()
+                            if col2.form_submit_button("Excluir Evento", type="primary"):
+                                st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
+                                save_data()
+                                st.warning("Evento excluído.")
+                                st.rerun()
+                else:
+                    st.info("Nenhum evento para editar.")
 
     elif selected == "Tesouraria":
         st.header("Gestão da Tesouraria")
