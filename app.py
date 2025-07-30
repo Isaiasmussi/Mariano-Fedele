@@ -97,6 +97,8 @@ def load_data():
         st.session_state.projecao_extras = {}
     if 'last_update' not in st.session_state:
         st.session_state.last_update = datetime.now()
+    if 'clicked_event_id' not in st.session_state:
+        st.session_state.clicked_event_id = None
 
 def get_proximo_id(df, id_column):
     if df.empty or not df[id_column].any():
@@ -233,12 +235,14 @@ else:
         for _, row in st.session_state.eventos_df.iterrows():
             calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "id": row["id_evento"], "color": row.get("cor", "#4682B4")})
         
-        # --- CORREÇÃO APLICADA AQUI: Chave estática para o calendário ---
-        clicked_event = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
+        clicked_event_info = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
 
-        if is_admin and clicked_event and 'id' in clicked_event:
-            event_id = int(clicked_event['id'])
-            # Garante que o evento ainda existe antes de tentar editar
+        # --- LÓGICA DE EDIÇÃO CORRIGIDA ---
+        if is_admin and clicked_event_info and 'id' in clicked_event_info:
+            st.session_state.clicked_event_id = int(clicked_event_info['id'])
+
+        if is_admin and st.session_state.clicked_event_id:
+            event_id = st.session_state.clicked_event_id
             if event_id in st.session_state.eventos_df['id_evento'].values:
                 evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
                 
@@ -253,11 +257,13 @@ else:
                         if col1.form_submit_button("Salvar Alterações"):
                             idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
                             st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
+                            st.session_state.clicked_event_id = None # Limpa o evento selecionado
                             save_data()
                             st.success("Evento atualizado!")
                             st.rerun()
                         if col2.form_submit_button("Excluir Evento", type="primary"):
                             st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
+                            st.session_state.clicked_event_id = None # Limpa o evento selecionado
                             save_data()
                             st.warning("Evento excluído.")
                             st.rerun()
