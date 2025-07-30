@@ -18,11 +18,9 @@ st.set_page_config(
 )
 
 # --- DADOS E AUTENTICAÇÃO ---
-ADMIN_USERS = {
-    "admin": "demolay123",
-    "mestreconselheiro": "demolay123",
-    "escrivao": "demolay123"
-}
+# Senhas de acesso para os diferentes níveis de permissão
+SENHA_ADMIN = "cascao"
+SENHA_VISITANTE = "zegotinha"
 VALOR_MENSALIDADE = 25.00 # Valor base para simulação
 
 def get_proximo_id(df, id_column):
@@ -51,13 +49,12 @@ def initialize_data():
             'cor': ['#FF6347', '#4682B4', '#32CD32']
         })
     if 'tesouraria_df' not in st.session_state:
-        # --- CORREÇÃO APLICADA AQUI ---
         st.session_state.tesouraria_df = pd.DataFrame({
             'id_transacao': [1, 2, 3],
             'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
             'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
-            'tipo': ['Entrada', 'Saída', 'Entrada'], # Corrigido para ter 3 itens
-            'valor': [20.00, -15.50, 20.00] # Corrigido para ter 3 itens
+            'tipo': ['Entrada', 'Saída', 'Entrada'],
+            'valor': [20.00, -15.50, 20.00]
         })
     if 'mensalidades_df' not in st.session_state:
         st.session_state.mensalidades_df = pd.DataFrame({
@@ -80,24 +77,21 @@ def update_timestamp():
 # --- TELA DE LOGIN ---
 def login_screen():
     st.title("Sistema de Gestão do Capítulo Mariano Fedele")
-    st.subheader("Por favor, faça o login para continuar")
+    st.subheader("Por favor, insira a senha de acesso para continuar")
     with st.form("login_form"):
-        username = st.text_input("Usuário").lower()
-        password = st.text_input("Senha", type="password")
+        password = st.text_input("Senha de Acesso", type="password")
         submitted = st.form_submit_button("Entrar")
         if submitted:
-            if username in ADMIN_USERS and password == ADMIN_USERS[username]:
+            if password == SENHA_ADMIN:
                 st.session_state.authenticated = True
-                st.session_state.role = "admin"
-                st.session_state.username = username
+                st.session_state.role = "Admin"
                 st.rerun()
-            elif username:
+            elif password == SENHA_VISITANTE:
                 st.session_state.authenticated = True
-                st.session_state.role = "visitante"
-                st.session_state.username = username
+                st.session_state.role = "Visitante"
                 st.rerun()
             else:
-                st.error("Usuário ou senha inválidos")
+                st.error("Senha inválida")
 
 # --- LÓGICA PRINCIPAL DO APP ---
 if 'authenticated' not in st.session_state:
@@ -107,14 +101,14 @@ if not st.session_state.authenticated:
     login_screen()
 else:
     initialize_data()
-    is_admin = st.session_state.role == "admin"
+    is_admin = st.session_state.role == "Admin"
 
     col1, col2 = st.columns([1, 4])
     with col1:
         st.image("https://i.ibb.co/nsF1xTF0/image.jpg", width=150)
     with col2:
         st.title("Gestão do Capítulo Mariano Fedele")
-        st.markdown(f"Bem-vindo, **{st.session_state.username}**! (Perfil: *{st.session_state.role}*)")
+        st.markdown(f"Bem-vindo! (Perfil: **{st.session_state.role}**)")
     
     st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -313,7 +307,38 @@ else:
 
     elif selected == "Presença":
         st.header("Controle de Presença")
-        # ... (código da página)
+        evento_opts = st.session_state.eventos_df.sort_values('data', ascending=False)
+        if not evento_opts.empty:
+            evento_selecionado_nome = st.selectbox("Selecione um evento:", options=evento_opts['evento'])
+            id_evento_selecionado = evento_opts[evento_opts['evento'] == evento_selecionado_nome]['id_evento'].iloc[0]
+            
+            membros_ja_registrados_ids = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]['id_membro'].tolist()
+            membros_para_chamada = st.session_state.membros_df[~st.session_state.membros_df['id_membro'].isin(membros_ja_registrados_ids)]
+
+            if is_admin and not membros_para_chamada.empty:
+                with st.form("chamada_form"):
+                    st.write(f"**Registrar presença para: {evento_selecionado_nome}**")
+                    presencas = {membro['id_membro']: st.checkbox(f"{membro['nome']} ({membro['status']})") for _, membro in membros_para_chamada.iterrows()}
+                    if st.form_submit_button("Salvar Presenças"):
+                        novas_presencas = [{'id_evento': id_evento_selecionado, 'id_membro': id_membro, 'presente': presente} for id_membro, presente in presencas.items()]
+                        if novas_presencas:
+                            st.session_state.presenca_df = pd.concat([st.session_state.presenca_df, pd.DataFrame(novas_presencas)], ignore_index=True)
+                            update_timestamp()
+                            st.success("Presenças salvas!")
+                            st.rerun()
+            elif is_admin:
+                st.info("Todos os membros já tiveram a presença registrada para este evento.")
+
+            st.subheader(f"Resumo de Presença - {evento_selecionado_nome}")
+            presenca_evento = st.session_state.presenca_df[st.session_state.presenca_df['id_evento'] == id_evento_selecionado]
+            if not presenca_evento.empty:
+                resultado = pd.merge(presenca_evento, st.session_state.membros_df, on='id_membro', how='left')
+                resultado['presente'] = resultado['presente'].map({True: 'Presente ✅', False: 'Ausente ❌'})
+                st.dataframe(resultado[['nome', 'status', 'presente']], use_container_width=True)
+            else:
+                st.warning("Nenhuma presença registrada para este evento ainda.")
+        else:
+            st.warning("Nenhum evento cadastrado.")
 
     # --- RODAPÉ ---
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -322,5 +347,4 @@ else:
     if st.button("Logout"):
         st.session_state.authenticated = False
         st.session_state.role = None
-        st.session_state.username = None
         st.rerun()
