@@ -21,7 +21,7 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 25.00
+VALOR_MENSALIDADE = 20.00
 
 def get_proximo_id(df, id_column):
     """Gera um novo ID único para um DataFrame."""
