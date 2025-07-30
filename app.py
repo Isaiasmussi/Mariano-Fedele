@@ -1,5 +1,5 @@
 # app.py
-# Versão Final com Persistência de Dados em Arquivos CSV
+# Versão Final com Edição de Calendário e Persistência de Dados
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +19,7 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 20.00
+VALOR_MENSALIDADE = 25.00
 DATA_FILES = {
     "membros": "membros.csv",
     "eventos": "eventos.csv",
@@ -235,29 +235,32 @@ else:
         
         clicked_event = calendar(events=calendar_events, options={"locale": "pt-br"}, key=f"cal_{len(calendar_events)}")
 
+        # --- CÓDIGO RESTAURADO AQUI ---
         if is_admin and clicked_event and 'id' in clicked_event:
             event_id = int(clicked_event['id'])
-            evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
-            
-            with st.expander("Editar ou Excluir Evento Selecionado", expanded=True):
-                with st.form(f"edit_event_{event_id}"):
-                    st.write(f"**Editando:** {evento_data['evento']}")
-                    evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
-                    data_edit = st.date_input("Data", value=evento_data['data'])
-                    cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
-                    
-                    col1, col2 = st.columns(2)
-                    if col1.form_submit_button("Salvar Alterações"):
-                        idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
-                        st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
-                        save_data()
-                        st.success("Evento atualizado!")
-                        st.rerun()
-                    if col2.form_submit_button("Excluir Evento", type="primary"):
-                        st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
-                        save_data()
-                        st.warning("Evento excluído.")
-                        st.rerun()
+            # Garante que o evento ainda existe antes de tentar editar
+            if event_id in st.session_state.eventos_df['id_evento'].values:
+                evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
+                
+                with st.expander("Editar ou Excluir Evento Selecionado", expanded=True):
+                    with st.form(f"edit_event_{event_id}"):
+                        st.write(f"**Editando:** {evento_data['evento']}")
+                        evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
+                        data_edit = st.date_input("Data", value=pd.to_datetime(evento_data['data']))
+                        cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.form_submit_button("Salvar Alterações"):
+                            idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
+                            st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
+                            save_data()
+                            st.success("Evento atualizado!")
+                            st.rerun()
+                        if col2.form_submit_button("Excluir Evento", type="primary"):
+                            st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
+                            save_data()
+                            st.warning("Evento excluído.")
+                            st.rerun()
 
         if is_admin:
             with st.expander("Adicionar Novo Evento"):
@@ -424,6 +427,6 @@ else:
     st.markdown(f"<p style='text-align: center; color: grey;'>Última atualização em: {last_update_str}</p>", unsafe_allow_html=True)
     if st.button("Logout"):
         # Limpa todo o session_state para forçar o recarregamento dos dados na próxima vez
-        for key in st.session_state.keys():
+        for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
