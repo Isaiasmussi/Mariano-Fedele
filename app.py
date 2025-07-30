@@ -19,7 +19,7 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 25.00
+VALOR_MENSALIDADE = 20.00
 DATA_FILES = {
     "membros": "membros.csv",
     "eventos": "eventos.csv",
