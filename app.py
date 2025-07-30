@@ -51,12 +51,13 @@ def initialize_data():
             'cor': ['#FF6347', '#4682B4', '#32CD32']
         })
     if 'tesouraria_df' not in st.session_state:
+        # --- CORREÇÃO APLICADA AQUI ---
         st.session_state.tesouraria_df = pd.DataFrame({
             'id_transacao': [1, 2, 3],
             'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
             'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
-            'tipo': ['Entrada', 'Saída'],
-            'valor': [20.00, -15.50]
+            'tipo': ['Entrada', 'Saída', 'Entrada'], # Corrigido para ter 3 itens
+            'valor': [20.00, -15.50, 20.00] # Corrigido para ter 3 itens
         })
     if 'mensalidades_df' not in st.session_state:
         st.session_state.mensalidades_df = pd.DataFrame({
@@ -132,11 +133,68 @@ else:
 
     if selected == "Visão Geral":
         st.header("Visão Geral do Capítulo")
-        # ... (código da página)
+        col1, col2, col3 = st.columns(3)
+        membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0]
+        col1.metric("Membros Ativos", f"{membros_ativos}")
+        hoje = pd.Timestamp.now()
+        proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data')
+        if not proximos_eventos.empty:
+            prox_evento = proximos_eventos.iloc[0]
+            col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
+        else:
+            col2.metric("Próximo Evento", "Nenhum")
+        saldo_atual = st.session_state.tesouraria_df['valor'].sum()
+        col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
 
     elif selected == "Membros":
         st.header("Gestão de Membros")
-        # ... (código da página)
+        tabs = st.tabs(["Visualizar", "Adicionar", "Editar / Excluir"]) if is_admin else st.tabs(["Visualizar"])
+        
+        with tabs[0]:
+            st.dataframe(st.session_state.membros_df, use_container_width=True)
+
+        if is_admin:
+            with tabs[1]:
+                with st.form("add_membro", clear_on_submit=True):
+                    cid = st.text_input("CID (ID DeMolay)")
+                    nome = st.text_input("Nome Completo")
+                    tel = st.text_input("Telefone")
+                    email = st.text_input("E-mail")
+                    status = st.selectbox("Status", ["Ativo", "Sênior"])
+                    if st.form_submit_button("Adicionar Membro"):
+                        if cid and nome:
+                            novo_id = get_proximo_id(st.session_state.membros_df, 'id_membro')
+                            novo_membro = pd.DataFrame([{'id_membro': novo_id, 'cid': cid, 'nome': nome, 'telefone': tel, 'status': status, 'email': email}])
+                            st.session_state.membros_df = pd.concat([st.session_state.membros_df, novo_membro], ignore_index=True)
+                            update_timestamp()
+                            st.success("Membro adicionado!")
+                            st.rerun()
+                        else:
+                            st.error("CID e Nome são obrigatórios.")
+            
+            with tabs[2]:
+                membro_nome = st.selectbox("Selecione um membro", st.session_state.membros_df['nome'], index=None, placeholder="Escolha um membro...")
+                if membro_nome:
+                    idx = st.session_state.membros_df.index[st.session_state.membros_df['nome'] == membro_nome].tolist()[0]
+                    membro = st.session_state.membros_df.loc[idx]
+                    with st.form("edit_membro"):
+                        cid_edit = st.text_input("CID", value=membro['cid'])
+                        nome_edit = st.text_input("Nome", value=membro['nome'])
+                        tel_edit = st.text_input("Telefone", value=membro['telefone'])
+                        email_edit = st.text_input("E-mail", value=membro['email'])
+                        status_edit = st.selectbox("Status", ["Ativo", "Sênior"], index=["Ativo", "Sênior"].index(membro['status']))
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.form_submit_button("Salvar Alterações"):
+                            st.session_state.membros_df.loc[idx, ['cid', 'nome', 'telefone', 'email', 'status']] = [cid_edit, nome_edit, tel_edit, email_edit, status_edit]
+                            update_timestamp()
+                            st.success("Membro atualizado!")
+                            st.rerun()
+                        if col2.form_submit_button("Excluir Membro", type="primary"):
+                            st.session_state.membros_df = st.session_state.membros_df.drop(index=idx).reset_index(drop=True)
+                            update_timestamp()
+                            st.warning("Membro excluído.")
+                            st.rerun()
 
     elif selected == "Calendário":
         st.header("Calendário de Eventos")
@@ -172,8 +230,17 @@ else:
 
         if is_admin:
             with st.expander("Adicionar Novo Evento"):
-                # ... (código do formulário de adicionar)
-                pass
+                with st.form("add_evento", clear_on_submit=True):
+                    evento = st.text_input("Nome do Evento")
+                    data = st.date_input("Data")
+                    cor = st.color_picker("Cor do Evento", "#4682B4")
+                    if st.form_submit_button("Adicionar"):
+                        novo_id = get_proximo_id(st.session_state.eventos_df, 'id_evento')
+                        novo_evento = pd.DataFrame([{'id_evento': novo_id, 'data': pd.to_datetime(data), 'evento': evento, 'descricao': '', 'cor': cor}])
+                        st.session_state.eventos_df = pd.concat([st.session_state.eventos_df, novo_evento], ignore_index=True)
+                        update_timestamp()
+                        st.success("Evento adicionado!")
+                        st.rerun()
 
     elif selected == "Tesouraria":
         st.header("Gestão da Tesouraria")
@@ -199,10 +266,7 @@ else:
                     novo_status = st.radio("Novo Status", ['Adimplente', 'Inadimplente'], key="rad_status_mensal")
                     if st.button("Salvar Status"):
                         id_membro_alt = status_mensalidades.query(f"nome == '{membro_select}'")['id_membro'].iloc[0]
-                        
-                        # Remove registro antigo se existir
                         st.session_state.mensalidades_df = st.session_state.mensalidades_df.query(f"id_membro != {id_membro_alt}")
-                        # Adiciona novo registro
                         novo_status_df = pd.DataFrame([{'id_membro': id_membro_alt, 'status_pagamento': novo_status}])
                         st.session_state.mensalidades_df = pd.concat([st.session_state.mensalidades_df, novo_status_df], ignore_index=True)
                         update_timestamp()
@@ -227,10 +291,29 @@ else:
                 col3.metric("Receita Pendente", f"R$ {receita_pendente:,.2f}", delta=f"- R$ {receita_pendente:,.2f}", delta_color="inverse")
 
             with tabs[3]: # Adicionar Lançamento
-                # ... (código do formulário de adicionar)
-                pass
+                with st.form("add_transacao", clear_on_submit=True):
+                    desc = st.text_input("Descrição")
+                    data = st.date_input("Data")
+                    tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+                    valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f")
+                    if st.form_submit_button("Adicionar"):
+                        valor_final = valor if tipo == "Entrada" else -valor
+                        novo_id = get_proximo_id(st.session_state.tesouraria_df, 'id_transacao')
+                        nova_transacao = pd.DataFrame([{'id_transacao': novo_id, 'data': pd.to_datetime(data), 'descricao': desc, 'tipo': tipo, 'valor': valor_final}])
+                        st.session_state.tesouraria_df = pd.concat([st.session_state.tesouraria_df, nova_transacao], ignore_index=True)
+                        update_timestamp()
+                        st.success("Lançamento adicionado!")
+                        st.rerun()
+    
+    elif selected == "Projetos":
+        st.header("Gestão de Projetos")
+        st.info("Área em desenvolvimento para gerenciar projetos filantrópicos e internos.")
+        if is_admin:
+            st.button("Criar Novo Projeto")
 
-    # ... (outras páginas)
+    elif selected == "Presença":
+        st.header("Controle de Presença")
+        # ... (código da página)
 
     # --- RODAPÉ ---
     st.markdown("<hr>", unsafe_allow_html=True)
