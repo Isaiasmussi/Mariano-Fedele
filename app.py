@@ -21,7 +21,7 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 20.00
+VALOR_MENSALIDADE = 25.00
 
 def get_proximo_id(df, id_column):
     """Gera um novo ID único para um DataFrame."""
@@ -48,7 +48,9 @@ def initialize_data():
         })
     if 'tesouraria_df' not in st.session_state:
         st.session_state.tesouraria_df = pd.DataFrame({
-            
+            'id_transacao': [1, 2, 3], 'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
+            'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
+            'tipo': ['Entrada', 'Saída', 'Entrada'], 'valor': [20.00, -15.50, 20.00]
         })
     if 'mensalidades_df' not in st.session_state:
         st.session_state.mensalidades_df = pd.DataFrame({
@@ -119,7 +121,6 @@ else:
         }
     )
 
-    # --- CÓDIGO RESTAURADO PARA TODAS AS PÁGINAS ---
     if selected == "Visão Geral":
         st.header("Visão Geral do Capítulo")
         col1, col2, col3 = st.columns(3)
@@ -241,6 +242,26 @@ else:
             saldo_total = st.session_state.tesouraria_df['valor'].sum()
             st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
             st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
+            
+            # --- NOVA FUNCIONALIDADE AQUI ---
+            if is_admin:
+                with st.expander("Remover Lançamento"):
+                    if not st.session_state.tesouraria_df.empty:
+                        # Criar uma lista de opções mais descritiva
+                        options_list = [f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})" for index, row in st.session_state.tesouraria_df.iterrows()]
+                        id_map = {f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})": row['id_transacao'] for index, row in st.session_state.tesouraria_df.iterrows()}
+                        
+                        transacao_selecionada = st.selectbox("Selecione o lançamento para remover", options=options_list, index=None, placeholder="Escolha um lançamento...")
+                        
+                        if transacao_selecionada:
+                            if st.button("Remover Lançamento Selecionado", type="primary"):
+                                id_para_remover = id_map[transacao_selecionada]
+                                st.session_state.tesouraria_df = st.session_state.tesouraria_df[st.session_state.tesouraria_df['id_transacao'] != id_para_remover]
+                                update_timestamp()
+                                st.success("Lançamento removido com sucesso!")
+                                st.rerun()
+                    else:
+                        st.info("Nenhum lançamento para remover.")
 
         if is_admin:
             with tabs[1]: # Adicionar Lançamento
