@@ -233,9 +233,9 @@ else:
         for _, row in st.session_state.eventos_df.iterrows():
             calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "id": row["id_evento"], "color": row.get("cor", "#4682B4")})
         
-        clicked_event = calendar(events=calendar_events, options={"locale": "pt-br"}, key=f"cal_{len(calendar_events)}")
+        # --- CORREÇÃO APLICADA AQUI: Chave estática para o calendário ---
+        clicked_event = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
 
-        # --- CÓDIGO RESTAURADO AQUI ---
         if is_admin and clicked_event and 'id' in clicked_event:
             event_id = int(clicked_event['id'])
             # Garante que o evento ainda existe antes de tentar editar
