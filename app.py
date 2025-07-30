@@ -1,8 +1,5 @@
 # app.py
-# Para rodar este app:
-# 1. Salve este código como `app.py`.
-# 2. Certifique-se de que seu `requirements.txt` está atualizado.
-# 3. No terminal, execute: streamlit run app.py
+# Versão Final com Persistência de Dados em Arquivos CSV
 
 import streamlit as st
 import pandas as pd
@@ -10,6 +7,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from streamlit_calendar import calendar
 from streamlit_option_menu import option_menu
+import os
 
 # --- Configuração da Página ---
 st.set_page_config(
@@ -21,17 +19,31 @@ st.set_page_config(
 # --- DADOS E AUTENTICAÇÃO ---
 SENHA_ADMIN = "cascao"
 SENHA_VISITANTE = "zegotinha"
-VALOR_MENSALIDADE = 20.00
+VALOR_MENSALIDADE = 25.00
+DATA_FILES = {
+    "membros": "membros.csv",
+    "eventos": "eventos.csv",
+    "tesouraria": "tesouraria.csv",
+    "mensalidades": "mensalidades.csv",
+    "presenca": "presenca.csv"
+}
 
-def get_proximo_id(df, id_column):
-    """Gera um novo ID único para um DataFrame."""
-    if df.empty or not df[id_column].any():
-        return 1
-    return int(df[id_column].max() + 1)
+# --- FUNÇÕES DE PERSISTÊNCIA DE DADOS ---
+def save_data():
+    """Salva todos os DataFrames do session_state em arquivos CSV."""
+    st.session_state.membros_df.to_csv(DATA_FILES["membros"], index=False)
+    st.session_state.eventos_df.to_csv(DATA_FILES["eventos"], index=False)
+    st.session_state.tesouraria_df.to_csv(DATA_FILES["tesouraria"], index=False)
+    st.session_state.mensalidades_df.to_csv(DATA_FILES["mensalidades"], index=False)
+    st.session_state.presenca_df.to_csv(DATA_FILES["presenca"], index=False)
+    update_timestamp()
 
-def initialize_data():
-    """Inicializa ou reseta os dados no estado da sessão."""
-    if 'membros_df' not in st.session_state:
+def load_data():
+    """Carrega os dados dos arquivos CSV ou cria arquivos iniciais se não existirem."""
+    # Membros
+    if os.path.exists(DATA_FILES["membros"]):
+        st.session_state.membros_df = pd.read_csv(DATA_FILES["membros"])
+    else:
         st.session_state.membros_df = pd.DataFrame({
             'id_membro': [1, 2, 3, 4], 'cid': ['12345', '54321', '67890', '09876'],
             'nome': ['João da Silva', 'Carlos Pereira', 'Pedro Almeida', 'Lucas Souza'],
@@ -39,35 +51,59 @@ def initialize_data():
             'status': ['Ativo', 'Ativo', 'Sênior', 'Ativo'],
             'email': ['joao@email.com', 'carlos@email.com', 'pedro@email.com', 'lucas@email.com']
         })
-    if 'eventos_df' not in st.session_state:
+
+    # Eventos
+    if os.path.exists(DATA_FILES["eventos"]):
+        st.session_state.eventos_df = pd.read_csv(DATA_FILES["eventos"])
+        st.session_state.eventos_df['data'] = pd.to_datetime(st.session_state.eventos_df['data'])
+    else:
         st.session_state.eventos_df = pd.DataFrame({
             'id_evento': [101, 102, 103], 'data': pd.to_datetime(['2025-07-28', '2025-08-09', '2025-08-16']),
             'evento': ['Reunião Ordinária', 'Filantropia - Asilo', 'Cerimônia Magna de Iniciação'],
             'descricao': ['Discussão de projetos.', 'Visita e doação.', 'Iniciação de novos membros.'],
             'cor': ['#FF6347', '#4682B4', '#32CD32']
         })
-    if 'tesouraria_df' not in st.session_state:
+
+    # Tesouraria
+    if os.path.exists(DATA_FILES["tesouraria"]):
+        st.session_state.tesouraria_df = pd.read_csv(DATA_FILES["tesouraria"])
+        st.session_state.tesouraria_df['data'] = pd.to_datetime(st.session_state.tesouraria_df['data'])
+    else:
         st.session_state.tesouraria_df = pd.DataFrame({
             'id_transacao': [1, 2, 3], 'data': pd.to_datetime(['2025-07-01', '2025-07-05', '2025-07-15']),
             'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
             'tipo': ['Entrada', 'Saída', 'Entrada'], 'valor': [20.00, -15.50, 20.00]
         })
-    if 'mensalidades_df' not in st.session_state:
+
+    # Mensalidades
+    if os.path.exists(DATA_FILES["mensalidades"]):
+        st.session_state.mensalidades_df = pd.read_csv(DATA_FILES["mensalidades"])
+    else:
         st.session_state.mensalidades_df = pd.DataFrame({
             'id_membro': [1, 2, 4], 'status_pagamento': ['Adimplente', 'Inadimplente', 'Adimplente']
         })
-    if 'presenca_df' not in st.session_state:
+
+    # Presença
+    if os.path.exists(DATA_FILES["presenca"]):
+        st.session_state.presenca_df = pd.read_csv(DATA_FILES["presenca"])
+    else:
         st.session_state.presenca_df = pd.DataFrame({
             'id_evento': pd.Series(dtype='int'), 'id_membro': pd.Series(dtype='int'),
             'presente': pd.Series(dtype='bool')
         })
+    
+    # Inicializa outros estados da sessão
     if 'projecao_extras' not in st.session_state:
         st.session_state.projecao_extras = {}
     if 'last_update' not in st.session_state:
         st.session_state.last_update = datetime.now()
 
+def get_proximo_id(df, id_column):
+    if df.empty or not df[id_column].any():
+        return 1
+    return int(df[id_column].max() + 1)
+
 def update_timestamp():
-    """Atualiza o timestamp da última modificação."""
     st.session_state.last_update = datetime.now()
 
 # --- TELA DE LOGIN ---
@@ -96,7 +132,12 @@ if 'authenticated' not in st.session_state:
 if not st.session_state.authenticated:
     login_screen()
 else:
-    initialize_data()
+    # Carrega os dados na primeira vez após o login
+    if 'membros_df' not in st.session_state:
+        load_data()
+        # Salva os arquivos iniciais se eles não existiam
+        save_data()
+
     is_admin = st.session_state.role == "Admin"
 
     col1, col2 = st.columns([1, 4])
@@ -156,7 +197,7 @@ else:
                             novo_id = get_proximo_id(st.session_state.membros_df, 'id_membro')
                             novo_membro = pd.DataFrame([{'id_membro': novo_id, 'cid': cid, 'nome': nome, 'telefone': tel, 'status': status, 'email': email}])
                             st.session_state.membros_df = pd.concat([st.session_state.membros_df, novo_membro], ignore_index=True)
-                            update_timestamp()
+                            save_data()
                             st.success("Membro adicionado!")
                             st.rerun()
                         else:
@@ -177,12 +218,12 @@ else:
                         col1, col2 = st.columns(2)
                         if col1.form_submit_button("Salvar Alterações"):
                             st.session_state.membros_df.loc[idx, ['cid', 'nome', 'telefone', 'email', 'status']] = [cid_edit, nome_edit, tel_edit, email_edit, status_edit]
-                            update_timestamp()
+                            save_data()
                             st.success("Membro atualizado!")
                             st.rerun()
                         if col2.form_submit_button("Excluir Membro", type="primary"):
                             st.session_state.membros_df = st.session_state.membros_df.drop(index=idx).reset_index(drop=True)
-                            update_timestamp()
+                            save_data()
                             st.warning("Membro excluído.")
                             st.rerun()
 
@@ -209,12 +250,12 @@ else:
                     if col1.form_submit_button("Salvar Alterações"):
                         idx = st.session_state.eventos_df.index[st.session_state.eventos_df['id_evento'] == event_id].tolist()[0]
                         st.session_state.eventos_df.loc[idx, ['evento', 'data', 'cor']] = [evento_edit, pd.to_datetime(data_edit), cor_edit]
-                        update_timestamp()
+                        save_data()
                         st.success("Evento atualizado!")
                         st.rerun()
                     if col2.form_submit_button("Excluir Evento", type="primary"):
                         st.session_state.eventos_df = st.session_state.eventos_df.query(f"id_evento != {event_id}").reset_index(drop=True)
-                        update_timestamp()
+                        save_data()
                         st.warning("Evento excluído.")
                         st.rerun()
 
@@ -228,7 +269,7 @@ else:
                         novo_id = get_proximo_id(st.session_state.eventos_df, 'id_evento')
                         novo_evento = pd.DataFrame([{'id_evento': novo_id, 'data': pd.to_datetime(data), 'evento': evento, 'descricao': '', 'cor': cor}])
                         st.session_state.eventos_df = pd.concat([st.session_state.eventos_df, novo_evento], ignore_index=True)
-                        update_timestamp()
+                        save_data()
                         st.success("Evento adicionado!")
                         st.rerun()
 
@@ -243,11 +284,9 @@ else:
             st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
             st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
             
-            # --- NOVA FUNCIONALIDADE AQUI ---
             if is_admin:
                 with st.expander("Remover Lançamento"):
                     if not st.session_state.tesouraria_df.empty:
-                        # Criar uma lista de opções mais descritiva
                         options_list = [f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})" for index, row in st.session_state.tesouraria_df.iterrows()]
                         id_map = {f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})": row['id_transacao'] for index, row in st.session_state.tesouraria_df.iterrows()}
                         
@@ -257,7 +296,7 @@ else:
                             if st.button("Remover Lançamento Selecionado", type="primary"):
                                 id_para_remover = id_map[transacao_selecionada]
                                 st.session_state.tesouraria_df = st.session_state.tesouraria_df[st.session_state.tesouraria_df['id_transacao'] != id_para_remover]
-                                update_timestamp()
+                                save_data()
                                 st.success("Lançamento removido com sucesso!")
                                 st.rerun()
                     else:
@@ -276,7 +315,7 @@ else:
                         novo_id = get_proximo_id(st.session_state.tesouraria_df, 'id_transacao')
                         nova_transacao = pd.DataFrame([{'id_transacao': novo_id, 'data': pd.to_datetime(data), 'descricao': desc, 'tipo': tipo, 'valor': valor_final}])
                         st.session_state.tesouraria_df = pd.concat([st.session_state.tesouraria_df, nova_transacao], ignore_index=True)
-                        update_timestamp()
+                        save_data()
                         st.success("Lançamento adicionado!")
                         st.rerun()
 
@@ -293,7 +332,7 @@ else:
                         st.session_state.mensalidades_df = st.session_state.mensalidades_df.query(f"id_membro != {id_membro_alt}")
                         novo_status_df = pd.DataFrame([{'id_membro': id_membro_alt, 'status_pagamento': novo_status}])
                         st.session_state.mensalidades_df = pd.concat([st.session_state.mensalidades_df, novo_status_df], ignore_index=True)
-                        update_timestamp()
+                        save_data()
                         st.success(f"Status de {membro_select} atualizado para {novo_status}!")
                         st.rerun()
 
@@ -363,7 +402,7 @@ else:
                         novas_presencas = [{'id_evento': id_evento_selecionado, 'id_membro': id_membro, 'presente': presente} for id_membro, presente in presencas.items()]
                         if novas_presencas:
                             st.session_state.presenca_df = pd.concat([st.session_state.presenca_df, pd.DataFrame(novas_presencas)], ignore_index=True)
-                            update_timestamp()
+                            save_data()
                             st.success("Presenças salvas!")
                             st.rerun()
             elif is_admin:
@@ -384,6 +423,7 @@ else:
     last_update_str = st.session_state.last_update.strftime("%d/%m/%Y às %H:%M:%S")
     st.markdown(f"<p style='text-align: center; color: grey;'>Última atualização em: {last_update_str}</p>", unsafe_allow_html=True)
     if st.button("Logout"):
-        st.session_state.authenticated = False
-        st.session_state.role = None
+        # Limpa todo o session_state para forçar o recarregamento dos dados na próxima vez
+        for key in st.session_state.keys():
+            del st.session_state[key]
         st.rerun()
