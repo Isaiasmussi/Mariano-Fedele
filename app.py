@@ -171,7 +171,7 @@ else:
     if 'app_initialized' not in st.session_state:
         initialize_data()
         # Se a inicialização precisou popular os dados, rerun para carregar tudo
-        if 'seeded' in st.session_state:
+        if 'seeded' in st.session_state and st.session_state.seeded:
             st.rerun()
 
     is_admin = st.session_state.role == "Admin"
@@ -399,4 +399,3 @@ else:
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
-
