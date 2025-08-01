@@ -102,9 +102,8 @@ def seed_initial_data():
             'id_membro': [1, 2, 4], 'status_pagamento': ['Adimplente', 'Inadimplente', 'Adimplente']
         })
         save_dataframe_to_firestore(mensalidades_df, "mensalidades", "id_membro")
-    st.success("Dados de exemplo carregados! A página será recarregada.")
-    st.session_state.seeded = True # Define a flag para evitar o loop
-    st.rerun()
+    st.success("Dados de exemplo carregados!")
+    st.session_state.seeded = True
 
 def initialize_data():
     """Carrega os dados do Firestore para o session_state."""
@@ -115,7 +114,7 @@ def initialize_data():
         if not list(membros_check):
             seed_initial_data()
         else:
-            st.session_state.seeded = True # Marca que os dados já existiam
+            st.session_state.seeded = True
 
     st.session_state.membros_df = load_collection_to_df("membros")
     st.session_state.eventos_df = load_collection_to_df("eventos")
@@ -130,6 +129,7 @@ def initialize_data():
     if 'projecao_extras' not in st.session_state: st.session_state.projecao_extras = {}
     if 'last_update' not in st.session_state: st.session_state.last_update = datetime.now()
     if 'clicked_event_id' not in st.session_state: st.session_state.clicked_event_id = None
+    st.session_state.app_initialized = True
 
 def get_proximo_id(df, id_column):
     if df.empty or id_column not in df.columns or df[id_column].isnull().all():
@@ -168,7 +168,7 @@ if 'authenticated' not in st.session_state:
 if not st.session_state.authenticated:
     login_screen()
 else:
-    if 'membros_df' not in st.session_state:
+    if 'app_initialized' not in st.session_state:
         initialize_data()
 
     is_admin = st.session_state.role == "Admin"
