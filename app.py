@@ -26,8 +26,6 @@ VALOR_MENSALIDADE = 25.00
 def get_db_connection():
     """Conecta-se ao Firestore usando as credenciais do Streamlit Secrets."""
     try:
-        # --- CORREÇÃO APLICADA AQUI ---
-        # Cria uma cópia do dicionário de segredos para poder ser modificado
         creds_dict = dict(st.secrets["firebase_credentials"])
         creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
         db = firestore.Client.from_service_account_info(creds_dict)
@@ -75,47 +73,49 @@ def delete_doc(collection_name, doc_id):
 
 def seed_initial_data():
     """Popula a base de dados com dados de exemplo se estiver vazia."""
-    st.info("Base de dados vazia. A popular com dados de exemplo...")
-    
-    membros_df = pd.DataFrame({
-        'id_membro': [1, 2, 3, 4], 'cid': ['12345', '54321', '67890', '09876'],
-        'nome': ['João da Silva', 'Carlos Pereira', 'Pedro Almeida', 'Lucas Souza'],
-        'telefone': ['(51) 99999-1111', '(51) 98888-2222', '(51) 97777-3333', '(51) 96666-4444'],
-        'status': ['Ativo', 'Ativo', 'Sênior', 'Ativo'],
-        'email': ['joao@email.com', 'carlos@email.com', 'pedro@email.com', 'lucas@email.com']
-    })
-    save_dataframe_to_firestore(membros_df, "membros", "id_membro")
+    with st.spinner("Configurando a base de dados pela primeira vez..."):
+        membros_df = pd.DataFrame({
+            'id_membro': [1, 2, 3, 4], 'cid': ['12345', '54321', '67890', '09876'],
+            'nome': ['João da Silva', 'Carlos Pereira', 'Pedro Almeida', 'Lucas Souza'],
+            'telefone': ['(51) 99999-1111', '(51) 98888-2222', '(51) 97777-3333', '(51) 96666-4444'],
+            'status': ['Ativo', 'Ativo', 'Sênior', 'Ativo'],
+            'email': ['joao@email.com', 'carlos@email.com', 'pedro@email.com', 'lucas@email.com']
+        })
+        save_dataframe_to_firestore(membros_df, "membros", "id_membro")
 
-    eventos_df = pd.DataFrame({
-        'id_evento': [101, 102, 103], 'data': pd.to_datetime(['2025-08-10', '2025-08-17', '2025-08-24']),
-        'evento': ['Reunião Ordinária', 'Filantropia - Asilo', 'Cerimônia Magna de Iniciação'],
-        'descricao': ['Discussão de projetos.', 'Visita e doação.', 'Iniciação de novos membros.'],
-        'cor': ['#FF6347', '#4682B4', '#32CD32']
-    })
-    save_dataframe_to_firestore(eventos_df, "eventos", "id_evento")
+        eventos_df = pd.DataFrame({
+            'id_evento': [101, 102, 103], 'data': pd.to_datetime(['2025-08-10', '2025-08-17', '2025-08-24']),
+            'evento': ['Reunião Ordinária', 'Filantropia - Asilo', 'Cerimônia Magna de Iniciação'],
+            'descricao': ['Discussão de projetos.', 'Visita e doação.', 'Iniciação de novos membros.'],
+            'cor': ['#FF6347', '#4682B4', '#32CD32']
+        })
+        save_dataframe_to_firestore(eventos_df, "eventos", "id_evento")
 
-    tesouraria_df = pd.DataFrame({
-        'id_transacao': [1, 2, 3], 'data': pd.to_datetime(['2025-08-01', '2025-08-05', '2025-08-02']),
-        'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
-        'tipo': ['Entrada', 'Saída', 'Entrada'], 'valor': [25.00, -15.50, 25.00]
-    })
-    save_dataframe_to_firestore(tesouraria_df, "tesouraria", "id_transacao")
+        tesouraria_df = pd.DataFrame({
+            'id_transacao': [1, 2, 3], 'data': pd.to_datetime(['2025-08-01', '2025-08-05', '2025-08-02']),
+            'descricao': ['Taxa mensal - João', 'Compra de materiais', 'Taxa mensal - Carlos'],
+            'tipo': ['Entrada', 'Saída', 'Entrada'], 'valor': [25.00, -15.50, 25.00]
+        })
+        save_dataframe_to_firestore(tesouraria_df, "tesouraria", "id_transacao")
 
-    mensalidades_df = pd.DataFrame({
-        'id_membro': [1, 2, 4], 'status_pagamento': ['Adimplente', 'Inadimplente', 'Adimplente']
-    })
-    save_dataframe_to_firestore(mensalidades_df, "mensalidades", "id_membro")
-
+        mensalidades_df = pd.DataFrame({
+            'id_membro': [1, 2, 4], 'status_pagamento': ['Adimplente', 'Inadimplente', 'Adimplente']
+        })
+        save_dataframe_to_firestore(mensalidades_df, "mensalidades", "id_membro")
     st.success("Dados de exemplo carregados! A página será recarregada.")
+    st.session_state.seeded = True # Define a flag para evitar o loop
     st.rerun()
 
 def initialize_data():
     """Carrega os dados do Firestore para o session_state."""
     if db is None: return
 
-    membros_check = db.collection("membros").limit(1).get()
-    if not membros_check:
-        seed_initial_data()
+    if 'seeded' not in st.session_state:
+        membros_check = db.collection("membros").limit(1).get()
+        if not list(membros_check):
+            seed_initial_data()
+        else:
+            st.session_state.seeded = True # Marca que os dados já existiam
 
     st.session_state.membros_df = load_collection_to_df("membros")
     st.session_state.eventos_df = load_collection_to_df("eventos")
