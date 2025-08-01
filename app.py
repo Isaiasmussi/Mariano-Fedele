@@ -32,7 +32,7 @@ def get_db_connection():
         return db
     except Exception as e:
         st.error(f"Erro ao conectar ao Firebase: {e}")
-        st.error("Verifique se o seu ficheiro .streamlit/secrets.toml está configurado corretamente com a secção [firebase_credentials].")
+        st.error("Verifique se as suas credenciais foram adicionadas corretamente nas configurações (Settings -> Secrets) do seu aplicativo no Streamlit Cloud.")
         st.warning(f"Segredos disponíveis encontrados: {list(st.secrets.keys())}")
         return None
 
@@ -170,6 +170,9 @@ if not st.session_state.authenticated:
 else:
     if 'app_initialized' not in st.session_state:
         initialize_data()
+        # Se a inicialização precisou popular os dados, rerun para carregar tudo
+        if 'seeded' in st.session_state:
+            st.rerun()
 
     is_admin = st.session_state.role == "Admin"
 
