@@ -1,5 +1,5 @@
 # app.py
-# Versão Final com Integração Firebase, Configuração Automática e Diagnóstico de Erros
+# Versão Final com Integração Firebase, Configuração Automática e Correção de Erros
 
 import streamlit as st
 import pandas as pd
@@ -26,14 +26,15 @@ VALOR_MENSALIDADE = 25.00
 def get_db_connection():
     """Conecta-se ao Firestore usando as credenciais do Streamlit Secrets."""
     try:
-        creds_dict = st.secrets["firebase_credentials"]
+        # --- CORREÇÃO APLICADA AQUI ---
+        # Cria uma cópia do dicionário de segredos para poder ser modificado
+        creds_dict = dict(st.secrets["firebase_credentials"])
         creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
         db = firestore.Client.from_service_account_info(creds_dict)
         return db
     except Exception as e:
         st.error(f"Erro ao conectar ao Firebase: {e}")
         st.error("Verifique se o seu ficheiro .streamlit/secrets.toml está configurado corretamente com a secção [firebase_credentials].")
-        # Linha de diagnóstico: mostra quais segredos o Streamlit está a ver
         st.warning(f"Segredos disponíveis encontrados: {list(st.secrets.keys())}")
         return None
 
@@ -133,12 +134,10 @@ def initialize_data():
 def get_proximo_id(df, id_column):
     if df.empty or id_column not in df.columns or df[id_column].isnull().all():
         return 1
-    # Garante que a coluna é numérica antes de calcular o max()
     numeric_ids = pd.to_numeric(df[id_column], errors='coerce').dropna()
     if numeric_ids.empty:
         return 1
     return int(numeric_ids.max() + 1)
-
 
 def update_timestamp():
     st.session_state.last_update = datetime.now()
