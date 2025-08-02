@@ -1,5 +1,5 @@
 # app.py
-# Versão Final com Integração Firebase, Configuração Automática e Correção de Erros
+# Versão Final com Integração Firebase e SEM LOGIN
 
 import streamlit as st
 import pandas as pd
@@ -17,8 +17,8 @@ st.set_page_config(
 )
 
 # --- DADOS E AUTENTICAÇÃO ---
-SENHA_ADMIN = "cascao"
-SENHA_VISITANTE = "zegotinha"
+# SENHA_ADMIN = "cascao" # Comentado
+# SENHA_VISITANTE = "zegotinha" # Comentado
 VALOR_MENSALIDADE = 25.00
 
 # --- CONEXÃO COM FIREBASE ---
@@ -135,276 +135,236 @@ def get_proximo_id(df, id_column):
 def update_timestamp():
     st.session_state.last_update = datetime.now()
 
-# --- TELA DE LOGIN ---
-def login_screen():
-    st.title("Sistema de Gestão do Capítulo Mariano Fedele")
-    st.subheader("Por favor, insira a senha de acesso para continuar")
-    with st.form("login_form"):
-        password = st.text_input("Senha de Acesso", type="password")
-        submitted = st.form_submit_button("Entrar")
-        if submitted:
-            if password == SENHA_ADMIN:
-                st.session_state.authenticated = True
-                st.session_state.role = "Admin"
-                st.rerun()
-            elif password == SENHA_VISITANTE:
-                st.session_state.authenticated = True
-                st.session_state.role = "Visitante"
-                st.rerun()
-            else:
-                st.error("Senha inválida")
-
 # --- LÓGICA PRINCIPAL DO APP ---
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
 
-if not st.session_state.authenticated:
-    login_screen()
+# Inicializa os dados na primeira execução
+if 'app_initialized' not in st.session_state:
+    initialize_data()
+
+# Assume o papel de Admin por padrão
+is_admin = True 
+
+# Verifica se a base de dados está vazia
+if is_admin and st.session_state.membros_df.empty:
+    st.warning("A sua base de dados no Firebase está vazia.")
+    st.info("Clique no botão abaixo para carregar os dados de exemplo iniciais.")
+    if st.button("Configurar Base de Dados Inicial"):
+        seed_initial_data()
+        st.rerun()
 else:
-    if 'app_initialized' not in st.session_state:
-        initialize_data()
+    # --- INTERFACE PRINCIPAL DO APP ---
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image("https://i.ibb.co/nsF1xTF0/image.jpg", width=150)
+    with col2:
+        st.title("Gestão do Capítulo Mariano Fedele")
+        st.markdown(f"Bem-vindo! (Perfil: **Admin**)")
+    
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    is_admin = st.session_state.role == "Admin"
+    selected = option_menu(
+        menu_title=None,
+        options=["Visão Geral", "Membros", "Calendário", "Tesouraria", "Projetos", "Presença"],
+        icons=['house', 'people', 'calendar-check', 'cash-coin', 'kanban', 'person-check'],
+        orientation="horizontal",
+    )
 
-    # Verifica se a base de dados está vazia e se o utilizador é admin
-    if is_admin and st.session_state.membros_df.empty:
-        st.warning("A sua base de dados no Firebase está vazia.")
-        st.info("Clique no botão abaixo para carregar os dados de exemplo iniciais.")
-        if st.button("Configurar Base de Dados Inicial"):
-            seed_initial_data()
-            st.rerun()
-    else:
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            st.image("https://i.ibb.co/nsF1xTF0/image.jpg", width=150)
-        with col2:
-            st.title("Gestão do Capítulo Mariano Fedele")
-            st.markdown(f"Bem-vindo! (Perfil: **{st.session_state.role}**)")
+    if selected == "Visão Geral":
+        st.header("Visão Geral do Capítulo")
+        col1, col2, col3 = st.columns(3)
+        membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0] if not st.session_state.membros_df.empty else 0
+        col1.metric("Membros Ativos", f"{membros_ativos}")
+        hoje = pd.Timestamp.now()
+        proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data') if not st.session_state.eventos_df.empty else pd.DataFrame()
+        if not proximos_eventos.empty:
+            prox_evento = proximos_eventos.iloc[0]
+            col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
+        else:
+            col2.metric("Próximo Evento", "Nenhum")
+        saldo_atual = st.session_state.tesouraria_df['valor'].sum() if not st.session_state.tesouraria_df.empty else 0
+        col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
+
+    elif selected == "Membros":
+        st.header("Gestão de Membros")
+        tabs = st.tabs(["Visualizar", "Adicionar", "Editar / Excluir"])
         
-        st.markdown("<hr>", unsafe_allow_html=True)
+        with tabs[0]:
+            st.dataframe(st.session_state.membros_df, use_container_width=True)
 
-        selected = option_menu(
-            menu_title=None,
-            options=["Visão Geral", "Membros", "Calendário", "Tesouraria", "Projetos", "Presença"],
-            icons=['house', 'people', 'calendar-check', 'cash-coin', 'kanban', 'person-check'],
-            orientation="horizontal",
-        )
-
-        if selected == "Visão Geral":
-            st.header("Visão Geral do Capítulo")
-            col1, col2, col3 = st.columns(3)
-            membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo'].shape[0] if not st.session_state.membros_df.empty else 0
-            col1.metric("Membros Ativos", f"{membros_ativos}")
-            hoje = pd.Timestamp.now()
-            proximos_eventos = st.session_state.eventos_df[st.session_state.eventos_df['data'] >= hoje].sort_values('data') if not st.session_state.eventos_df.empty else pd.DataFrame()
-            if not proximos_eventos.empty:
-                prox_evento = proximos_eventos.iloc[0]
-                col2.metric("Próximo Evento", prox_evento['data'].strftime('%d/%m/%Y'), prox_evento['evento'])
-            else:
-                col2.metric("Próximo Evento", "Nenhum")
-            saldo_atual = st.session_state.tesouraria_df['valor'].sum() if not st.session_state.tesouraria_df.empty else 0
-            col3.metric("Saldo da Tesouraria", f"R$ {saldo_atual:,.2f}")
-
-        elif selected == "Membros":
-            st.header("Gestão de Membros")
-            tabs = st.tabs(["Visualizar", "Adicionar", "Editar / Excluir"]) if is_admin else st.tabs(["Visualizar"])
-            
-            with tabs[0]:
-                st.dataframe(st.session_state.membros_df, use_container_width=True)
-
-            if is_admin:
-                with tabs[1]:
-                    with st.form("add_membro", clear_on_submit=True):
-                        novo_id = get_proximo_id(st.session_state.membros_df, 'id_membro')
-                        cid = st.text_input("CID (ID DeMolay)")
-                        nome = st.text_input("Nome Completo")
-                        tel = st.text_input("Telefone")
-                        email = st.text_input("E-mail")
-                        status = st.selectbox("Status", ["Ativo", "Sênior"])
-                        if st.form_submit_button("Adicionar Membro"):
-                            if cid and nome:
-                                novo_membro_dict = {'id_membro': novo_id, 'cid': cid, 'nome': nome, 'telefone': tel, 'status': status, 'email': email}
-                                add_or_update_doc("membros", novo_id, novo_membro_dict)
-                                st.success("Membro adicionado!")
-                                initialize_data()
-                                st.rerun()
-                            else:
-                                st.error("CID e Nome são obrigatórios.")
-                
-                with tabs[2]:
-                    membro_nome = st.selectbox("Selecione um membro", st.session_state.membros_df['nome'], index=None, placeholder="Escolha um membro...")
-                    if membro_nome:
-                        membro = st.session_state.membros_df[st.session_state.membros_df['nome'] == membro_nome].iloc[0]
-                        with st.form("edit_membro"):
-                            cid_edit = st.text_input("CID", value=membro['cid'])
-                            nome_edit = st.text_input("Nome", value=membro['nome'])
-                            tel_edit = st.text_input("Telefone", value=membro['telefone'])
-                            email_edit = st.text_input("E-mail", value=membro['email'])
-                            status_edit = st.selectbox("Status", ["Ativo", "Sênior"], index=["Ativo", "Sênior"].index(membro['status']))
-                            
-                            col1, col2 = st.columns(2)
-                            if col1.form_submit_button("Salvar Alterações"):
-                                membro_atualizado = membro.to_dict()
-                                membro_atualizado.update({'cid': cid_edit, 'nome': nome_edit, 'telefone': tel_edit, 'email': email_edit, 'status': status_edit})
-                                add_or_update_doc("membros", membro['id_membro'], membro_atualizado)
-                                st.success("Membro atualizado!")
-                                initialize_data()
-                                st.rerun()
-                            if col2.form_submit_button("Excluir Membro", type="primary"):
-                                delete_doc("membros", membro['id_membro'])
-                                st.warning("Membro excluído.")
-                                initialize_data()
-                                st.rerun()
-
-        elif selected == "Calendário":
-            st.header("Calendário de Eventos")
-            calendar_events = []
-            if not st.session_state.eventos_df.empty:
-                for _, row in st.session_state.eventos_df.iterrows():
-                    calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "id": row["id_evento"], "color": row.get("cor", "#4682B4")})
-            
-            clicked_event_info = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
-
-            if is_admin and clicked_event_info and 'id' in clicked_event_info:
-                st.session_state.clicked_event_id = int(clicked_event_info['id'])
-
-            if is_admin and st.session_state.clicked_event_id:
-                event_id = st.session_state.clicked_event_id
-                if not st.session_state.eventos_df.empty and event_id in st.session_state.eventos_df['id_evento'].values:
-                    evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
-                    with st.expander("Editar ou Excluir Evento Selecionado", expanded=True):
-                        with st.form(f"edit_event_{event_id}"):
-                            st.write(f"**Editando:** {evento_data['evento']}")
-                            evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
-                            data_edit = st.date_input("Data", value=pd.to_datetime(evento_data['data']))
-                            cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
-                            
-                            col1, col2 = st.columns(2)
-                            if col1.form_submit_button("Salvar Alterações"):
-                                evento_atualizado = evento_data.to_dict()
-                                evento_atualizado.update({'evento': evento_edit, 'data': pd.to_datetime(data_edit), 'cor': cor_edit})
-                                add_or_update_doc("eventos", event_id, evento_atualizado)
-                                st.session_state.clicked_event_id = None
-                                st.success("Evento atualizado!")
-                                initialize_data()
-                                st.rerun()
-                            if col2.form_submit_button("Excluir Evento", type="primary"):
-                                delete_doc("eventos", event_id)
-                                st.session_state.clicked_event_id = None
-                                st.warning("Evento excluído.")
-                                initialize_data()
-                                st.rerun()
-
-            if is_admin:
-                with st.expander("Adicionar Novo Evento"):
-                    with st.form("add_evento", clear_on_submit=True):
-                        novo_id = get_proximo_id(st.session_state.eventos_df, 'id_evento')
-                        evento = st.text_input("Nome do Evento")
-                        data = st.date_input("Data")
-                        cor = st.color_picker("Cor do Evento", "#4682B4")
-                        if st.form_submit_button("Adicionar"):
-                            novo_evento_dict = {'id_evento': novo_id, 'data': pd.to_datetime(data), 'evento': evento, 'descricao': '', 'cor': cor}
-                            add_or_update_doc("eventos", novo_id, novo_evento_dict)
-                            st.success("Evento adicionado!")
-                            initialize_data()
-                            st.rerun()
-
-        elif selected == "Tesouraria":
-            st.header("Gestão da Tesouraria")
-            
-            tab_options = ["Extrato", "Adicionar Lançamento", "Controle de Mensalidades", "Projeção Financeira"] if is_admin else ["Extrato", "Controle de Mensalidades"]
-            tabs = st.tabs(tab_options)
-            
-            with tabs[0]: # Extrato
-                saldo_total = st.session_state.tesouraria_df['valor'].sum() if not st.session_state.tesouraria_df.empty else 0
-                st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
-                st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
-                
-                if is_admin:
-                    with st.expander("Remover Lançamento"):
-                        if not st.session_state.tesouraria_df.empty:
-                            options_list = [f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})" for index, row in st.session_state.tesouraria_df.iterrows()]
-                            id_map = {f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})": row['id_transacao'] for index, row in st.session_state.tesouraria_df.iterrows()}
-                            
-                            transacao_selecionada = st.selectbox("Selecione o lançamento para remover", options=options_list, index=None, placeholder="Escolha um lançamento...")
-                            
-                            if transacao_selecionada:
-                                if st.button("Remover Lançamento Selecionado", type="primary"):
-                                    id_para_remover = id_map[transacao_selecionada]
-                                    delete_doc("tesouraria", id_para_remover)
-                                    st.success("Lançamento removido com sucesso!")
-                                    initialize_data()
-                                    st.rerun()
-                        else:
-                            st.info("Nenhum lançamento para remover.")
-
-            if is_admin:
-                with tabs[1]: # Adicionar Lançamento
-                    st.subheader("Adicionar Novo Lançamento")
-                    with st.form("add_transacao", clear_on_submit=True):
-                        novo_id = get_proximo_id(st.session_state.tesouraria_df, 'id_transacao')
-                        desc = st.text_input("Descrição")
-                        data = st.date_input("Data")
-                        tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-                        valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f")
-                        if st.form_submit_button("Adicionar"):
-                            valor_final = valor if tipo == "Entrada" else -valor
-                            nova_transacao_dict = {'id_transacao': novo_id, 'data': pd.to_datetime(data), 'descricao': desc, 'tipo': tipo, 'valor': valor_final}
-                            add_or_update_doc("tesouraria", novo_id, nova_transacao_dict)
-                            st.success("Lançamento adicionado!")
-                            initialize_data()
-                            st.rerun()
-
-                with tabs[2]: # Controle de Mensalidades
-                    membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
-                    if not membros_ativos.empty:
-                        status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
-                        st.subheader("Status das Mensalidades")
-                        st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
-                        with st.expander("Alterar Status de Pagamento"):
-                            membro_select = st.selectbox("Selecione o Membro", options=status_mensalidades['nome'], key="sel_membro_mensal")
-                            novo_status = st.radio("Novo Status", ['Adimplente', 'Inadimplente'], key="rad_status_mensal")
-                            if st.button("Salvar Status"):
-                                id_membro_alt = int(status_mensalidades.query(f"nome == '{membro_select}'")['id_membro'].iloc[0])
-                                novo_status_dict = {'id_membro': id_membro_alt, 'status_pagamento': novo_status}
-                                add_or_update_doc("mensalidades", id_membro_alt, novo_status_dict)
-                                st.success(f"Status de {membro_select} atualizado para {novo_status}!")
-                                initialize_data()
-                                st.rerun()
+        with tabs[1]:
+            with st.form("add_membro", clear_on_submit=True):
+                novo_id = get_proximo_id(st.session_state.membros_df, 'id_membro')
+                cid = st.text_input("CID (ID DeMolay)")
+                nome = st.text_input("Nome Completo")
+                tel = st.text_input("Telefone")
+                email = st.text_input("E-mail")
+                status = st.selectbox("Status", ["Ativo", "Sênior"])
+                if st.form_submit_button("Adicionar Membro"):
+                    if cid and nome:
+                        novo_membro_dict = {'id_membro': novo_id, 'cid': cid, 'nome': nome, 'telefone': tel, 'status': status, 'email': email}
+                        add_or_update_doc("membros", novo_id, novo_membro_dict)
+                        st.success("Membro adicionado!")
+                        initialize_data()
+                        st.rerun()
                     else:
-                        st.info("Nenhum membro ativo para gerir mensalidades.")
+                        st.error("CID e Nome são obrigatórios.")
+        
+        with tabs[2]:
+            membro_nome = st.selectbox("Selecione um membro", st.session_state.membros_df['nome'], index=None, placeholder="Escolha um membro...")
+            if membro_nome:
+                membro = st.session_state.membros_df[st.session_state.membros_df['nome'] == membro_nome].iloc[0]
+                with st.form(f"edit_membro_{membro['id_membro']}"):
+                    cid_edit = st.text_input("CID", value=membro['cid'])
+                    nome_edit = st.text_input("Nome", value=membro['nome'])
+                    tel_edit = st.text_input("Telefone", value=membro['telefone'])
+                    email_edit = st.text_input("E-mail", value=membro['email'])
+                    status_edit = st.selectbox("Status", ["Ativo", "Sênior"], index=["Ativo", "Sênior"].index(membro['status']))
+                    
+                    col1, col2 = st.columns(2)
+                    if col1.form_submit_button("Salvar Alterações"):
+                        membro_atualizado = membro.to_dict()
+                        membro_atualizado.update({'cid': cid_edit, 'nome': nome_edit, 'telefone': tel_edit, 'email': email_edit, 'status': status_edit})
+                        add_or_update_doc("membros", membro['id_membro'], membro_atualizado)
+                        st.success("Membro atualizado!")
+                        initialize_data()
+                        st.rerun()
+                    if col2.form_submit_button("Excluir Membro", type="primary"):
+                        delete_doc("membros", membro['id_membro'])
+                        st.warning("Membro excluído.")
+                        initialize_data()
+                        st.rerun()
 
-                with tabs[3]: # Projeção Financeira
-                    st.subheader("Projeção de Fluxo de Caixa")
-                    # ... (código da projeção, que não salva dados, apenas exibe)
+    elif selected == "Calendário":
+        st.header("Calendário de Eventos")
+        calendar_events = []
+        if not st.session_state.eventos_df.empty:
+            for _, row in st.session_state.eventos_df.iterrows():
+                calendar_events.append({"title": row["evento"], "start": row["data"].strftime("%Y-%m-%d"), "id": row["id_evento"], "color": row.get("cor", "#4682B4")})
+        
+        clicked_event_info = calendar(events=calendar_events, options={"locale": "pt-br"}, key="calendar_main")
 
-        elif len(tabs) > 1: # Visitante
-             with tabs[1]:
-                membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
-                if not membros_ativos.empty:
-                    status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
-                    st.subheader("Status das Mensalidades")
-                    st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
+        if clicked_event_info and 'id' in clicked_event_info:
+            st.session_state.clicked_event_id = int(clicked_event_info['id'])
+
+        if st.session_state.clicked_event_id:
+            event_id = st.session_state.clicked_event_id
+            if not st.session_state.eventos_df.empty and event_id in st.session_state.eventos_df['id_evento'].values:
+                evento_data = st.session_state.eventos_df.query(f"id_evento == {event_id}").iloc[0]
+                with st.expander("Editar ou Excluir Evento Selecionado", expanded=True):
+                    with st.form(f"edit_event_{event_id}"):
+                        st.write(f"**Editando:** {evento_data['evento']}")
+                        evento_edit = st.text_input("Nome do Evento", value=evento_data['evento'])
+                        data_edit = st.date_input("Data", value=pd.to_datetime(evento_data['data']))
+                        cor_edit = st.color_picker("Cor do Evento", value=evento_data['cor'])
+                        
+                        col1, col2 = st.columns(2)
+                        if col1.form_submit_button("Salvar Alterações"):
+                            evento_atualizado = evento_data.to_dict()
+                            evento_atualizado.update({'evento': evento_edit, 'data': pd.to_datetime(data_edit), 'cor': cor_edit})
+                            add_or_update_doc("eventos", event_id, evento_atualizado)
+                            st.session_state.clicked_event_id = None
+                            st.success("Evento atualizado!")
+                            initialize_data()
+                            st.rerun()
+                        if col2.form_submit_button("Excluir Evento", type="primary"):
+                            delete_doc("eventos", event_id)
+                            st.session_state.clicked_event_id = None
+                            st.warning("Evento excluído.")
+                            initialize_data()
+                            st.rerun()
+
+        with st.expander("Adicionar Novo Evento"):
+            with st.form("add_evento", clear_on_submit=True):
+                novo_id = get_proximo_id(st.session_state.eventos_df, 'id_evento')
+                evento = st.text_input("Nome do Evento")
+                data = st.date_input("Data")
+                cor = st.color_picker("Cor do Evento", "#4682B4")
+                if st.form_submit_button("Adicionar"):
+                    novo_evento_dict = {'id_evento': novo_id, 'data': pd.to_datetime(data), 'evento': evento, 'descricao': '', 'cor': cor}
+                    add_or_update_doc("eventos", novo_id, novo_evento_dict)
+                    st.success("Evento adicionado!")
+                    initialize_data()
+                    st.rerun()
+
+    elif selected == "Tesouraria":
+        st.header("Gestão da Tesouraria")
+        
+        tab_options = ["Extrato", "Adicionar Lançamento", "Controle de Mensalidades", "Projeção Financeira"]
+        tabs = st.tabs(tab_options)
+        
+        with tabs[0]: # Extrato
+            saldo_total = st.session_state.tesouraria_df['valor'].sum() if not st.session_state.tesouraria_df.empty else 0
+            st.metric("Saldo Atual", f"R$ {saldo_total:,.2f}")
+            st.dataframe(st.session_state.tesouraria_df.sort_values('data', ascending=False), use_container_width=True)
+            
+            with st.expander("Remover Lançamento"):
+                if not st.session_state.tesouraria_df.empty:
+                    options_list = [f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})" for index, row in st.session_state.tesouraria_df.iterrows()]
+                    id_map = {f"{row['data'].strftime('%d/%m/%Y')} - {row['descricao']} (R$ {row['valor']:.2f})": row['id_transacao'] for index, row in st.session_state.tesouraria_df.iterrows()}
+                    
+                    transacao_selecionada = st.selectbox("Selecione o lançamento para remover", options=options_list, index=None, placeholder="Escolha um lançamento...")
+                    
+                    if transacao_selecionada:
+                        if st.button("Remover Lançamento Selecionado", type="primary"):
+                            id_para_remover = id_map[transacao_selecionada]
+                            delete_doc("tesouraria", id_para_remover)
+                            st.success("Lançamento removido com sucesso!")
+                            initialize_data()
+                            st.rerun()
                 else:
-                    st.info("Nenhum membro ativo.")
+                    st.info("Nenhum lançamento para remover.")
+
+        with tabs[1]: # Adicionar Lançamento
+            st.subheader("Adicionar Novo Lançamento")
+            with st.form("add_transacao", clear_on_submit=True):
+                novo_id = get_proximo_id(st.session_state.tesouraria_df, 'id_transacao')
+                desc = st.text_input("Descrição")
+                data = st.date_input("Data")
+                tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+                valor = st.number_input("Valor (R$)", min_value=0.01, format="%.2f")
+                if st.form_submit_button("Adicionar"):
+                    valor_final = valor if tipo == "Entrada" else -valor
+                    nova_transacao_dict = {'id_transacao': novo_id, 'data': pd.to_datetime(data), 'descricao': desc, 'tipo': tipo, 'valor': valor_final}
+                    add_or_update_doc("tesouraria", novo_id, nova_transacao_dict)
+                    st.success("Lançamento adicionado!")
+                    initialize_data()
+                    st.rerun()
+
+        with tabs[2]: # Controle de Mensalidades
+            membros_ativos = st.session_state.membros_df[st.session_state.membros_df['status'] == 'Ativo']
+            if not membros_ativos.empty:
+                status_mensalidades = pd.merge(membros_ativos[['id_membro', 'nome']], st.session_state.mensalidades_df, on='id_membro', how='left').fillna({'status_pagamento': 'Inadimplente'})
+                st.subheader("Status das Mensalidades")
+                st.dataframe(status_mensalidades[['nome', 'status_pagamento']], use_container_width=True)
+                with st.expander("Alterar Status de Pagamento"):
+                    membro_select = st.selectbox("Selecione o Membro", options=status_mensalidades['nome'], key="sel_membro_mensal")
+                    novo_status = st.radio("Novo Status", ['Adimplente', 'Inadimplente'], key="rad_status_mensal")
+                    if st.button("Salvar Status"):
+                        id_membro_alt = int(status_mensalidades.query(f"nome == '{membro_select}'")['id_membro'].iloc[0])
+                        novo_status_dict = {'id_membro': id_membro_alt, 'status_pagamento': novo_status}
+                        add_or_update_doc("mensalidades", id_membro_alt, novo_status_dict)
+                        st.success(f"Status de {membro_select} atualizado para {novo_status}!")
+                        initialize_data()
+                        st.rerun()
+            else:
+                st.info("Nenhum membro ativo para gerir mensalidades.")
+
+        with tabs[3]: # Projeção Financeira
+            st.subheader("Projeção de Fluxo de Caixa")
+            # ... (código da projeção, que não salva dados, apenas exibe)
+
+    elif selected == "Projetos":
+        st.header("Gestão de Projetos")
+        st.info("Área em desenvolvimento para gerenciar projetos filantrópricos e internos.")
+        st.button("Criar Novo Projeto")
+
+    elif selected == "Presença":
+        st.header("Controle de Presença")
+        # ... (código da página Presença, que salva no Firebase)
 
 
-        elif selected == "Projetos":
-            st.header("Gestão de Projetos")
-            st.info("Área em desenvolvimento para gerenciar projetos filantrópicos e internos.")
-            if is_admin:
-                st.button("Criar Novo Projeto")
+    # --- RODAPÉ ---
+    st.markdown("<hr>", unsafe_allow_html=True)
+    last_update_str = st.session_state.last_update.strftime("%d/%m/%Y às %H:%M:%S")
+    st.markdown(f"<p style='text-align: center; color: grey;'>Última atualização em: {last_update_str}</p>", unsafe_allow_html=True)
 
-        elif selected == "Presença":
-            st.header("Controle de Presença")
-            # ... (código da página Presença, que salva no Firebase)
-
-
-        # --- RODAPÉ ---
-        st.markdown("<hr>", unsafe_allow_html=True)
-        last_update_str = st.session_state.last_update.strftime("%d/%m/%Y às %H:%M:%S")
-        st.markdown(f"<p style='text-align: center; color: grey;'>Última atualização em: {last_update_str}</p>", unsafe_allow_html=True)
-        if st.button("Logout"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
